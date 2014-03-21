@@ -28,10 +28,7 @@ Compile and install.
 	make install
 
 ##Testing
-You can test Opus using the free softphone [PhonerLite](http://phonerlite.de/download_en.htm). Make sure you choose the beta version, as the stable one does not comply with [draft-ietf-payload-rtp-opus](http://tools.ietf.org/html/draft-ietf-payload-rtp-opus-00) (RTP timestamp increment). The codec\_opus module also has a CLI command to enable debugging: type _opus set debug_ for information about it.
-
-	Usage: opus set debug {status|none|normal|huge}
-		Enable/Disable Opus debugging: normal only debugs setup and errors, huge debugs every single packet
+You can test Opus using the free softphone [PhonerLite](http://phonerlite.de/download_en.htm). Make sure you choose the beta version, as the stable one does not comply with [draft-ietf-payload-rtp-opus](http://tools.ietf.org/html/draft-ietf-payload-rtp-opus-00) (RTP timestamp increment).
 
 For VP8 you can make use of the open source softphone [Linphone](http://www.linphone.org/eng/linphone/news/linphone-3.5.0-released-for-desktop.html), which added support for VP8 in version 3.5.0.
 
