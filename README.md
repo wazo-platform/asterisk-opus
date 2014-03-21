@@ -1,14 +1,19 @@
 #Asterisk Opus/VP8 patch
 =======================
 
-Since Opus and VP8 cannot, as of now, be integrated in the Asterisk repositories (learn why in this [thread](http://lists.digium.com/pipermail/asterisk-dev/2013-May/060356.html)), we prepared a patch that adds support for both codecs (Opus transcoding, VP8 passthrough) to [Asterisk 11.1.2](http://downloads.asterisk.org/pub/telephony/asterisk/releases/).
+Since Opus and VP8 cannot, as of now, be integrated in the Asterisk repositories (learn why in this [thread](http://lists.digium.com/pipermail/asterisk-dev/2013-May/060356.html)), we prepared a patch that adds support for both codecs (Opus transcoding, VP8 passthrough) to [Asterisk 11 SVN](http://svn.digium.com/view/asterisk/branches/11/):
+
+    svn checkout http://svn.digium.com/svn/asterisk/branches/11/ asterisk-11-svn
 
 ##Installing the patch
 To support Opus, you'll need to install [libopus](http://www.opus-codec.org/downloads/) first. No library is needed for VP8, as its support is passthrough only.
 
-The patch was built on top of Asterisk 11.1.2: applying it on different versions may or may not work out of the box, but solving conflicts shouldn't be too hard anyway. Copy it in the Asterisk source folder and apply it:
+The patch was built on top of Asterisk 11 SVN r410965: applying it on different versions may or may not work out of the box, but solving conflicts shouldn't be too hard anyway:
 
-	patch -p1 -u < asterisk_opus+vp8.diff
+	cd asterisk-11-svn
+    cp /path/to/asterisk-opus/codecs/* codecs/
+    cp /path/to/asterisk-opus/formats/* formats/
+    patch -p1 < /path/to/asterisk-opus/asterisk.patch
 
 Run the bootstrap script to regenerate the configure:
 
