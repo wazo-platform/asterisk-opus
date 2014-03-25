@@ -12,7 +12,7 @@ diff -urN a/build_tools/menuselect-deps.in b/build_tools/menuselect-deps.in
 diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
 --- a/channels/chan_sip.c
 +++ b/channels/chan_sip.c
-@@ -7803,8 +7803,25 @@ static int sip_indicate(struct ast_channel *ast, int condition, const void *data
+@@ -7804,8 +7804,25 @@ static int sip_indicate(struct ast_channel *ast, int condition, const void *data
  		break;
  	case AST_CONTROL_VIDUPDATE:	/* Request a video frame update */
  		if (p->vrtp && !p->novideo) {
@@ -40,7 +40,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  		} else
  			res = -1;
  		break;
-@@ -11119,7 +11136,7 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
+@@ -11120,7 +11137,7 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
  		struct ast_format *format;
  
  		if ((format = ast_rtp_codecs_get_payload_format(newaudiortp, codec))) {
@@ -49,7 +49,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  
  			if (!ast_format_sdp_parse(format, fmtp_string)) {
  				found = TRUE;
-@@ -11158,6 +11175,54 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
+@@ -11159,6 +11176,54 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
  					}
  				}
  				break;
@@ -104,7 +104,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  			}
  		}
  	}
-@@ -11178,7 +11243,9 @@ static int process_sdp_a_video(const char *a, struct sip_pvt *p, struct ast_rtp_
+@@ -11179,7 +11244,9 @@ static int process_sdp_a_video(const char *a, struct sip_pvt *p, struct ast_rtp_
  		/* We have a rtpmap to handle */
  		if (*last_rtpmap_codec < SDP_MAX_RTPMAP_CODECS) {
  			/* Note: should really look at the '#chans' params too */
@@ -115,7 +115,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  				if (!(ast_rtp_codecs_payloads_set_rtpmap_type_rate(newvideortp, NULL, codec, "video", mimeSubtype, 0, sample_rate))) {
  					if (debug)
  						ast_verbose("Found video description format %s for ID %d\n", mimeSubtype, codec);
-@@ -12751,7 +12818,12 @@ static void add_codec_to_sdp(const struct sip_pvt *p,
+@@ -12752,8 +12819,13 @@ static void add_codec_to_sdp(const struct sip_pvt *p,
  	} else /* I don't see how you couldn't have p->rtp, but good to check for and error out if not there like earlier code */
  		return;
  	ast_str_append(m_buf, 0, " %d", rtp_code);
@@ -129,7 +129,8 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  
  	ast_format_sdp_generate(format, rtp_code, a_buf);
  
-@@ -12780,6 +12852,16 @@ static void add_codec_to_sdp(const struct sip_pvt *p,
+ 	switch ((int) format->id) {
+@@ -12781,6 +12853,16 @@ static void add_codec_to_sdp(const struct sip_pvt *p,
  		/* Indicate that we only expect 64Kbps */
  		ast_str_append(a_buf, 0, "a=fmtp:%d bitrate=64000\r\n", rtp_code);
  		break;
