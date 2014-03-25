@@ -1,7 +1,7 @@
 diff -urN a/build_tools/menuselect-deps.in b/build_tools/menuselect-deps.in
 --- a/build_tools/menuselect-deps.in
 +++ b/build_tools/menuselect-deps.in
-@@ -40,6 +40,7 @@ NEON=@PBX_NEON@
+@@ -42,6 +42,7 @@
  NEON29=@PBX_NEON29@
  OGG=@PBX_OGG@
  OPENH323=@PBX_OPENH323@
@@ -12,35 +12,7 @@ diff -urN a/build_tools/menuselect-deps.in b/build_tools/menuselect-deps.in
 diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
 --- a/channels/chan_sip.c
 +++ b/channels/chan_sip.c
-@@ -7803,8 +7803,25 @@ static int sip_indicate(struct ast_channel *ast, int condition, const void *data
- 		break;
- 	case AST_CONTROL_VIDUPDATE:	/* Request a video frame update */
- 		if (p->vrtp && !p->novideo) {
--			transmit_info_with_vidupdate(p);
--			/* ast_rtcp_send_h261fur(p->vrtp); */
-+			/* Only use this for WebRTC users */
-+			struct ast_format_cap *fcap = ast_channel_nativeformats(ast);
-+			struct ast_format vp8;
-+			ast_format_set(&vp8, AST_FORMAT_VP8, 0);
-+			if (ast_format_cap_iscompatible(fcap, &vp8)) {
-+				sip_pvt_lock(p);
-+				if (p->vrtp) {
-+					struct ast_frame fr;
-+					ast_log(LOG_WARNING, "chan_sip, sending RTCP FIR to WebRTC user\n");
-+					/* FIXME Fake RTP write, this will be sent as an RTCP packet */
-+					fr.frametype = AST_FRAME_CONTROL;
-+					fr.subclass.integer = AST_CONTROL_VIDUPDATE;
-+					res = ast_rtp_instance_write(p->vrtp, &fr);
-+				}
-+				sip_pvt_unlock(p);
-+			} else {
-+				transmit_info_with_vidupdate(p);
-+				/* ast_rtcp_send_h261fur(p->vrtp); */
-+			}
- 		} else
- 			res = -1;
- 		break;
-@@ -11119,7 +11136,7 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
+@@ -11247,7 +11247,7 @@
  		struct ast_format *format;
  
  		if ((format = ast_rtp_codecs_get_payload_format(newaudiortp, codec))) {
@@ -49,7 +21,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  
  			if (!ast_format_sdp_parse(format, fmtp_string)) {
  				found = TRUE;
-@@ -11158,6 +11175,54 @@ static int process_sdp_a_audio(const char *a, struct sip_pvt *p, struct ast_rtp_
+@@ -11286,6 +11286,54 @@
  					}
  				}
  				break;
@@ -104,7 +76,7 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
  			}
  		}
  	}
-@@ -12780,6 +12852,16 @@ static void add_codec_to_sdp(const struct sip_pvt *p,
+@@ -12937,6 +12985,16 @@
  		/* Indicate that we only expect 64Kbps */
  		ast_str_append(a_buf, 0, "a=fmtp:%d bitrate=64000\r\n", rtp_code);
  		break;
@@ -120,11 +92,11 @@ diff -urN a/channels/chan_sip.c b/channels/chan_sip.c
 +		break;
  	}
  
- 	if (fmt.cur_ms && (fmt.cur_ms < *min_packet_size))
+ 	if (max_packet_size && fmt.max_ms && (fmt.max_ms < *max_packet_size)) {
 diff -urN a/configure.ac b/configure.ac
 --- a/configure.ac
 +++ b/configure.ac
-@@ -422,6 +422,7 @@ AST_EXT_LIB_SETUP([NETSNMP], [Net-SNMP], [netsnmp])
+@@ -428,6 +428,7 @@
  AST_EXT_LIB_SETUP([NEWT], [newt], [newt])
  AST_EXT_LIB_SETUP([OGG], [OGG], [ogg])
  AST_EXT_LIB_SETUP([OPENR2], [MFR2], [openr2])
@@ -132,7 +104,7 @@ diff -urN a/configure.ac b/configure.ac
  AST_EXT_LIB_SETUP([OSPTK], [OSP Toolkit], [osptk])
  AST_EXT_LIB_SETUP([OSS], [Open Sound System], [oss])
  AST_EXT_LIB_SETUP([PGSQL], [PostgreSQL], [postgres])
-@@ -2147,6 +2148,8 @@ fi
+@@ -2167,6 +2168,8 @@
  
  AC_SUBST(PBX_SPEEX_PREPROCESS)
  
@@ -144,7 +116,7 @@ diff -urN a/configure.ac b/configure.ac
 diff -urN a/main/frame.c b/main/frame.c
 --- a/main/frame.c
 +++ b/main/frame.c
-@@ -1002,6 +1002,49 @@ static int speex_samples(unsigned char *data, int len)
+@@ -1029,6 +1029,48 @@
  	return cnt;
  }
  
@@ -152,6 +124,7 @@ diff -urN a/main/frame.c b/main/frame.c
 +static int opus_samples(unsigned char *data, int len)
 +{
 +	int count, frames;
++	int audiosize, Fs = 48000;
 +
 +	/* Do opus_packet_get_nb_frames first */
 +	if (len < 1) {
@@ -172,8 +145,6 @@ diff -urN a/main/frame.c b/main/frame.c
 +	}
 +
 +	/* Then, do a opus_packet_get_samples_per_frame */
-+	int audiosize, Fs = 48000;
-+
 +	if (data[0] & 0x80) {
 +		audiosize = ((data[0] >> 3) & 0x3);
 +		audiosize = (Fs << audiosize) / 400;
@@ -194,20 +165,20 @@ diff -urN a/main/frame.c b/main/frame.c
  int ast_codec_get_samples(struct ast_frame *f)
  {
  	int samples = 0;
-@@ -1083,6 +1126,9 @@ int ast_codec_get_samples(struct ast_frame *f)
- 		/* TODO The assumes 20ms delivery right now, which is incorrect */
+@@ -1111,8 +1153,7 @@
  		samples = ast_format_rate(&f->subclass.format) / 50;
  		break;
-+	case AST_FORMAT_OPUS:
+ 	case AST_FORMAT_OPUS:
+-		/* TODO This assumes 20ms delivery right now, which is incorrect */
+-		samples = 960;
 +		samples = opus_samples(f->data.ptr, f->datalen);
-+		break;
+ 		break;
  	default:
  		ast_log(LOG_WARNING, "Unable to calculate samples for format %s\n", ast_getformatname(&f->subclass.format));
- 	}
 diff -urN a/makeopts.in b/makeopts.in
 --- a/makeopts.in
 +++ b/makeopts.in
-@@ -262,6 +262,9 @@ SPEEX_LIB=@SPEEX_LIB@
+@@ -272,6 +272,9 @@
  SPEEXDSP_INCLUDE=@SPEEXDSP_INCLUDE@
  SPEEXDSP_LIB=@SPEEXDSP_LIB@
  
