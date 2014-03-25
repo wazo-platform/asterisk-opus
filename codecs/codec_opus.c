@@ -45,7 +45,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/module.h"
 #include "asterisk/config.h"
 #include "asterisk/utils.h"
-#include "asterisk/cli.h"
 
 #define	BUFFER_SAMPLES	8000
 #define	OPUS_SAMPLES	160
@@ -437,10 +436,6 @@ static struct ast_translator opustolin48 = {
 	.native_plc = 1,	/* FIXME: needed? */
 };
 
-static struct ast_cli_entry cli_opus[] = {
-	AST_CLI_DEFINE(handle_cli_opus_set_debug, "Enable/Disable Opus debugging"),
-};
-
 /* Configuration and module setup */
 static int parse_config(int reload)
 {
@@ -471,8 +466,6 @@ static int unload_module(void)
 	res |= ast_unregister_translator(&lin24toopus);
 	res |= ast_unregister_translator(&opustolin48);
 	res |= ast_unregister_translator(&lin48toopus);
-
-	ast_cli_unregister_multiple(cli_opus, ARRAY_LEN(cli_opus));
 
 	return res;
 }
@@ -525,8 +518,6 @@ static int load_module(void)
 	res |= ast_register_translator(&lin24toopus);
 	res |= ast_register_translator(&opustolin48);
 	res |= ast_register_translator(&lin48toopus);
-
-	ast_cli_register_multiple(cli_opus, sizeof(cli_opus) / sizeof(struct ast_cli_entry));
 
 	return res;
 }
