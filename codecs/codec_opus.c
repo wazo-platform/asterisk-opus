@@ -61,8 +61,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 static int encid;
 static int decid;
 
-static int opusdebug;
-
 /* Private structures */
 struct opus_coder_pvt {
 	void *opus;	/* May be encoder or decoder */
@@ -155,52 +153,12 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 /* Translator callbacks */
 static int lintoopus_new(struct ast_trans_pvt *pvt)
 {
-	return opus_encoder_construct(pvt, 8000);
-}
-
-static int lin12toopus_new(struct ast_trans_pvt *pvt)
-{
-	return opus_encoder_construct(pvt, 12000);
-}
-
-static int lin16toopus_new(struct ast_trans_pvt *pvt)
-{
-	return opus_encoder_construct(pvt, 16000);
-}
-
-static int lin24toopus_new(struct ast_trans_pvt *pvt)
-{
-	return opus_encoder_construct(pvt, 24000);
-}
-
-static int lin48toopus_new(struct ast_trans_pvt *pvt)
-{
-	return opus_encoder_construct(pvt, 48000);
+	return opus_encoder_construct(pvt, pvt->t->src_codec.sample_rate);
 }
 
 static int opustolin_new(struct ast_trans_pvt *pvt)
 {
-	return opus_decoder_construct(pvt, 8000);
-}
-
-static int opustolin12_new(struct ast_trans_pvt *pvt)
-{
-	return opus_decoder_construct(pvt, 12000);
-}
-
-static int opustolin16_new(struct ast_trans_pvt *pvt)
-{
-	return opus_decoder_construct(pvt, 16000);
-}
-
-static int opustolin24_new(struct ast_trans_pvt *pvt)
-{
-	return opus_decoder_construct(pvt, 24000);
-}
-
-static int opustolin48_new(struct ast_trans_pvt *pvt)
-{
-	return opus_decoder_construct(pvt, 48000);
+	return opus_decoder_construct(pvt, pvt->t->dst_codec.sample_rate);
 }
 
 static int lintoopus_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
@@ -219,14 +177,13 @@ static int lintoopus_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
+	int datalen = 0;	/* output bytes */
+	int samples = 0;	/* output samples */
 
 	/* We can't work on anything less than a frame in size */
 	if (pvt->samples < opvt->framesize) {
 		return NULL;
 	}
-
-	int datalen = 0;	/* output bytes */
-	int samples = 0;	/* output samples */
 
 	/* Encode 160 samples (or more if it's not narrowband) */
 	ast_debug(3, "[Encoder #%d (%d)] %d samples, %d bytes\n",
@@ -319,121 +276,226 @@ static void opustolin_destroy(struct ast_trans_pvt *arg)
 }
 
 /* Translators */
-static struct ast_translator lintoopus = {
-	.name = "lintoopus",
-	.newpvt = lintoopus_new,
-	.framein = lintoopus_framein,
-	.frameout = lintoopus_frameout,
-	.destroy = lintoopus_destroy,
-	.sample = slin8_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-};
-
-static struct ast_translator lin12toopus = {
-	.name = "lin12toopus",
-	.newpvt = lin12toopus_new,
-	.framein = lintoopus_framein,
-	.frameout = lintoopus_frameout,
-	.destroy = lintoopus_destroy,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-};
-
-static struct ast_translator lin16toopus = {
-	.name = "lin16toopus",
-	.newpvt = lin16toopus_new,
-	.framein = lintoopus_framein,
-	.frameout = lintoopus_frameout,
-	.destroy = lintoopus_destroy,
-	.sample = slin16_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-};
-
-static struct ast_translator lin24toopus = {
-	.name = "lin24toopus",
-	.newpvt = lin24toopus_new,
-	.framein = lintoopus_framein,
-	.frameout = lintoopus_frameout,
-	.destroy = lintoopus_destroy,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-};
-
-static struct ast_translator lin48toopus = {
-	.name = "lin48toopus",
-	.newpvt = lin48toopus_new,
-	.framein = lintoopus_framein,
-	.frameout = lintoopus_frameout,
-	.destroy = lintoopus_destroy,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-};
-
 static struct ast_translator opustolin = {
-	.name = "opustolin",
-	.newpvt = opustolin_new,
-	.framein = opustolin_framein,
-	.destroy = opustolin_destroy,
-	.sample = opus_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-	.native_plc = 1,	/* FIXME: needed? */
+        .name = "opustolin",
+        .src_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 8000,
+        },
+        .format = "slin",
+        .newpvt = opustolin_new,
+        .framein = opustolin_framein,
+        .destroy = opustolin_destroy,
+        .sample = opus_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
+};
+
+static struct ast_translator lintoopus = {
+        .name = "lintoopus",
+        .src_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 8000,
+        },
+        .dst_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "opus",
+        .newpvt = lintoopus_new,
+        .framein = lintoopus_framein,
+        .frameout = lintoopus_frameout,
+        .destroy = lintoopus_destroy,
+        .sample = slin8_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
 };
 
 static struct ast_translator opustolin12 = {
-	.name = "opustolin12",
-	.newpvt = opustolin12_new,
-	.framein = opustolin_framein,
-	.destroy = opustolin_destroy,
-	.sample = opus_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-	.native_plc = 1,	/* FIXME: needed? */
+        .name = "opustolin12",
+        .src_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 12000,
+        },
+        .format = "slin12",
+        .newpvt = opustolin_new,
+        .framein = opustolin_framein,
+        .destroy = opustolin_destroy,
+        .sample = opus_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
+};
+
+static struct ast_translator lin12toopus = {
+        .name = "lin12toopus",
+        .src_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 12000,
+        },
+        .dst_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "opus",
+        .newpvt = lintoopus_new,
+        .framein = lintoopus_framein,
+        .frameout = lintoopus_frameout,
+        .destroy = lintoopus_destroy,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
 };
 
 static struct ast_translator opustolin16 = {
-	.name = "opustolin16",
-	.newpvt = opustolin16_new,
-	.framein = opustolin_framein,
-	.destroy = opustolin_destroy,
-	.sample = opus_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-	.native_plc = 1,	/* FIXME: needed? */
+        .name = "opustolin16",
+        .src_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 16000,
+        },
+        .format = "slin16",
+        .newpvt = opustolin_new,
+        .framein = opustolin_framein,
+        .destroy = opustolin_destroy,
+        .sample = opus_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
+};
+
+static struct ast_translator lin16toopus = {
+        .name = "lin16toopus",
+        .src_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 16000,
+        },
+        .dst_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "opus",
+        .newpvt = lintoopus_new,
+        .framein = lintoopus_framein,
+        .frameout = lintoopus_frameout,
+        .destroy = lintoopus_destroy,
+        .sample = slin16_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
 };
 
 static struct ast_translator opustolin24 = {
-	.name = "opustolin24",
-	.newpvt = opustolin24_new,
-	.framein = opustolin_framein,
-	.destroy = opustolin_destroy,
-	.sample = opus_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-	.native_plc = 1,	/* FIXME: needed? */
+        .name = "opustolin24",
+        .src_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 24000,
+        },
+        .format = "slin24",
+        .newpvt = opustolin_new,
+        .framein = opustolin_framein,
+        .destroy = opustolin_destroy,
+        .sample = opus_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
+};
+
+static struct ast_translator lin24toopus = {
+        .name = "lin24toopus",
+        .src_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 24000,
+        },
+        .dst_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "opus",
+        .newpvt = lintoopus_new,
+        .framein = lintoopus_framein,
+        .frameout = lintoopus_frameout,
+        .destroy = lintoopus_destroy,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
 };
 
 static struct ast_translator opustolin48 = {
-	.name = "opustolin48",
-	.newpvt = opustolin48_new,
-	.framein = opustolin_framein,
-	.destroy = opustolin_destroy,
-	.sample = opus_sample,
-	.desc_size = sizeof(struct opus_coder_pvt),
-	.buffer_samples = BUFFER_SAMPLES,
-	.buf_size = BUFFER_SAMPLES * 2,
-	.native_plc = 1,	/* FIXME: needed? */
+        .name = "opustolin48",
+        .src_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "slin48",
+        .newpvt = opustolin_new,
+        .framein = opustolin_framein,
+        .destroy = opustolin_destroy,
+        .sample = opus_sample,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
+};
+
+static struct ast_translator lin48toopus = {
+        .name = "lin48toopus",
+        .src_codec = {
+                .name = "slin",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .dst_codec = {
+                .name = "opus",
+                .type = AST_MEDIA_TYPE_AUDIO,
+                .sample_rate = 48000,
+        },
+        .format = "opus",
+        .newpvt = lintoopus_new,
+        .framein = lintoopus_framein,
+        .frameout = lintoopus_frameout,
+        .destroy = lintoopus_destroy,
+        .desc_size = sizeof(struct opus_coder_pvt),
+        .buffer_samples = BUFFER_SAMPLES,
+        .buf_size = BUFFER_SAMPLES * 2,
 };
 
 /* Configuration and module setup */
@@ -452,9 +514,49 @@ static int reload(void)
 	return AST_MODULE_LOAD_SUCCESS;
 }
 
+static int opus_samples_count(struct ast_frame *frame)
+{
+	return opus_packet_get_nb_samples(frame->data.ptr, frame->datalen, 48000);
+}
+
+static int (*save_samples_count)(struct ast_frame *);
+
+static int override_opus_samples_count(void)
+{
+	struct ast_codec *codec;
+
+	if (!(codec = ast_codec_get("opus", AST_MEDIA_TYPE_AUDIO, 48000))) {
+		return 1;
+	}
+
+	save_samples_count = codec->samples_count;
+	codec->samples_count = opus_samples_count;
+
+	ao2_ref(codec, -1);
+
+	return 0;
+}
+
+static int restore_opus_samples_count(void)
+{
+	struct ast_codec *codec;
+
+	if (!(codec = ast_codec_get("opus", AST_MEDIA_TYPE_AUDIO, 48000))) {
+		return 1;
+	}
+
+	codec->samples_count = save_samples_count;
+
+	ao2_ref(codec, -1);
+
+	return 0;
+}
+
 static int unload_module(void)
 {
 	int res = 0;
+
+	res |= restore_opus_samples_count();
 
 	res |= ast_unregister_translator(&opustolin);
 	res |= ast_unregister_translator(&lintoopus);
@@ -478,35 +580,9 @@ static int load_module(void)
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
-	/* 8khz (nb) */
-	ast_format_set(&opustolin.src_format, AST_FORMAT_OPUS, 0);
-	ast_format_set(&opustolin.dst_format, AST_FORMAT_SLINEAR, 0);
-	ast_format_set(&lintoopus.src_format, AST_FORMAT_SLINEAR, 0);
-	ast_format_set(&lintoopus.dst_format, AST_FORMAT_OPUS, 0);
-
-	/* 12khz (mb) */
-	ast_format_set(&opustolin12.src_format, AST_FORMAT_OPUS, 0);
-	ast_format_set(&opustolin12.dst_format, AST_FORMAT_SLINEAR12, 0);
-	ast_format_set(&lin12toopus.src_format, AST_FORMAT_SLINEAR12, 0);
-	ast_format_set(&lin12toopus.dst_format, AST_FORMAT_OPUS, 0);
-
-	/* 16khz (wb) */
-	ast_format_set(&opustolin16.src_format, AST_FORMAT_OPUS, 0);
-	ast_format_set(&opustolin16.dst_format, AST_FORMAT_SLINEAR16, 0);
-	ast_format_set(&lin16toopus.src_format, AST_FORMAT_SLINEAR16, 0);
-	ast_format_set(&lin16toopus.dst_format, AST_FORMAT_OPUS, 0);
-
-	/* 24khz (swb) */
-	ast_format_set(&opustolin24.src_format, AST_FORMAT_OPUS, 0);
-	ast_format_set(&opustolin24.dst_format, AST_FORMAT_SLINEAR24, 0);
-	ast_format_set(&lin24toopus.src_format, AST_FORMAT_SLINEAR24, 0);
-	ast_format_set(&lin24toopus.dst_format, AST_FORMAT_OPUS, 0);
-
-	/* 48khz (fb) */
-	ast_format_set(&opustolin48.src_format, AST_FORMAT_OPUS, 0);
-	ast_format_set(&opustolin48.dst_format, AST_FORMAT_SLINEAR48, 0);
-	ast_format_set(&lin48toopus.src_format, AST_FORMAT_SLINEAR48, 0);
-	ast_format_set(&lin48toopus.dst_format, AST_FORMAT_OPUS, 0);
+	if (override_opus_samples_count()) {
+		return AST_MODULE_LOAD_DECLINE;
+	}
 
 	res |= ast_register_translator(&opustolin);
 	res |= ast_register_translator(&lintoopus);

@@ -29,7 +29,7 @@ static struct ast_frame *opus_sample(void)
 		.data.ptr = ex_opus,
 	};
 
-	ast_format_set(&f.subclass.format, AST_FORMAT_OPUS, 0);
+	f.subclass.format = ast_format_opus;
 
 	return &f;
 }

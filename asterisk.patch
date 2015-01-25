@@ -1,106 +1,40 @@
-diff -urN a/build_tools/menuselect-deps.in b/build_tools/menuselect-deps.in
---- a/build_tools/menuselect-deps.in
-+++ b/build_tools/menuselect-deps.in
-@@ -42,6 +42,7 @@
- NEON29=@PBX_NEON29@
- OGG=@PBX_OGG@
- OPENH323=@PBX_OPENH323@
-+OPUS=@PBX_OPUS@
- OSPTK=@PBX_OSPTK@
- OSS=@PBX_OSS@
- PGSQL=@PBX_PGSQL@
-diff -urN a/configure.ac b/configure.ac
---- a/configure.ac
-+++ b/configure.ac
-@@ -428,6 +428,7 @@
- AST_EXT_LIB_SETUP([NEWT], [newt], [newt])
- AST_EXT_LIB_SETUP([OGG], [OGG], [ogg])
- AST_EXT_LIB_SETUP([OPENR2], [MFR2], [openr2])
-+AST_EXT_LIB_SETUP([OPUS], [Opus], [opus])
- AST_EXT_LIB_SETUP([OSPTK], [OSP Toolkit], [osptk])
- AST_EXT_LIB_SETUP([OSS], [Open Sound System], [oss])
- AST_EXT_LIB_SETUP([PGSQL], [PostgreSQL], [postgres])
-@@ -2167,6 +2168,8 @@
+diff -urN a/res/res_format_attr_opus.c b/res/res_format_attr_opus.c
+--- a/res/res_format_attr_opus.c
++++ b/res/res_format_attr_opus.c
+@@ -51,6 +51,12 @@
+ 	unsigned int spropstereo;	        /* Default 0 */
+ };
  
- AC_SUBST(PBX_SPEEX_PREPROCESS)
- 
-+AST_EXT_LIB_CHECK([OPUS], [opus], [opus_encoder_create], [opus/opus.h])
++static struct opus_attr default_opus_attr = {
++	.fec    = 0,
++	.dtx    = 0,
++	.stereo = 0,
++};
 +
- AST_EXT_LIB_CHECK([SQLITE], [sqlite], [sqlite_exec], [sqlite.h])
+ static void opus_destroy(struct ast_format *format)
+ {
+ 	struct opus_attr *attr = ast_format_get_attribute_data(format);
+@@ -120,7 +126,7 @@
+ 		attr->dtx = val;
+ 	}
  
- AST_EXT_LIB_CHECK([SQLITE3], [sqlite3], [sqlite3_open], [sqlite3.h], [${PTHREAD_LIBS}], [${PTHREAD_CFLAGS}])
-diff -urN a/main/frame.c b/main/frame.c
---- a/main/frame.c
-+++ b/main/frame.c
-@@ -1029,6 +1029,48 @@
- 	return cnt;
+-	return 0;
++	return cloned;
  }
  
-+/* Opus: copied from opus_decoder.c */
-+static int opus_samples(unsigned char *data, int len)
-+{
-+	int count, frames;
-+	int audiosize, Fs = 48000;
-+
-+	/* Do opus_packet_get_nb_frames first */
-+	if (len < 1) {
-+		/* FIXME OPUS_BAD_ARG */
-+		return 0;
-+	} else {
-+		count = data[0] & 0x3;
-+		if (count == 0) {
-+			frames = 1;
-+		} else if (count != 3) {
-+			frames = 2;
-+		} else if (len < 2) {
-+			/* FIXME OPUS_INVALID_PACKET */
-+			return 0;
-+		} else {
-+			frames = data[1] & 0x3F;
-+		}
+ static void opus_generate_sdp_fmtp(const struct ast_format *format, unsigned int payload, struct ast_str **str)
+@@ -163,6 +169,14 @@
+ 	struct ast_format *jointformat;
+ 	struct opus_attr *attr_res;
+ 
++	if (!attr1) {
++		attr1 = &default_opus_attr;
 +	}
 +
-+	/* Then, do a opus_packet_get_samples_per_frame */
-+	if (data[0] & 0x80) {
-+		audiosize = ((data[0] >> 3) & 0x3);
-+		audiosize = (Fs << audiosize) / 400;
-+	} else if ((data[0] & 0x60) == 0x60) {
-+		audiosize = (data[0] & 0x08) ? Fs / 50 : Fs / 100;
-+	} else {
-+		audiosize = ((data[0] >> 3) & 0x3);
-+		if (audiosize == 3) {
-+			audiosize = Fs * 60 / 1000;
-+		} else {
-+			audiosize = (Fs << audiosize) / 100;
-+		}
++	if (!attr2) {
++		attr2 = &default_opus_attr;
 +	}
 +
-+	return frames * audiosize;
-+}
-+
- int ast_codec_get_samples(struct ast_frame *f)
- {
- 	int samples = 0;
-@@ -1111,8 +1153,7 @@
- 		samples = ast_format_rate(&f->subclass.format) / 50;
- 		break;
- 	case AST_FORMAT_OPUS:
--		/* TODO This assumes 20ms delivery right now, which is incorrect */
--		samples = 960;
-+		samples = opus_samples(f->data.ptr, f->datalen);
- 		break;
- 	default:
- 		ast_log(LOG_WARNING, "Unable to calculate samples for format %s\n", ast_getformatname(&f->subclass.format));
-diff -urN a/makeopts.in b/makeopts.in
---- a/makeopts.in
-+++ b/makeopts.in
-@@ -272,6 +272,9 @@
- SPEEXDSP_INCLUDE=@SPEEXDSP_INCLUDE@
- SPEEXDSP_LIB=@SPEEXDSP_LIB@
- 
-+OPUS_INCLUDE=@OPUS_INCLUDE@
-+OPUS_LIB=@OPUS_LIB@
-+
- SQLITE_INCLUDE=@SQLITE_INCLUDE@
- SQLITE_LIB=@SQLITE_LIB@
- 
+ 	jointformat = ast_format_clone(format1);
+ 	if (!jointformat) {
+ 		return NULL;
