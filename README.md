@@ -5,7 +5,7 @@
 * [Asterisk 11](https://github.com/seanbright/asterisk-opus/tree/asterisk-11)
 * [Asterisk 12](https://github.com/seanbright/asterisk-opus/tree/asterisk-12)
 
-Since Opus and VP8 cannot, as of now, be integrated into the main Asterisk repositories (learn why [in this thread](http://lists.digium.com/pipermail/asterisk-dev/2013-May/060356.html)), we prepared a patch that adds support for both codecs (Opus transcoding, VP8 passthrough) to [Asterisk 12 SVN](http://svn.digium.com/view/asterisk/branches/12/):
+Since Opus and VP8 cannot, as of now, be integrated into the main Asterisk repositories (learn why [in this thread](http://lists.digium.com/pipermail/asterisk-dev/2013-May/060356.html)), we prepared a patch that adds support for both codecs (Opus transcoding, VP8 passthrough) to [Asterisk 13 SVN](http://svn.digium.com/view/asterisk/branches/13/):
 
     svn checkout http://svn.digium.com/svn/asterisk/branches/13/ asterisk-13-svn
 
