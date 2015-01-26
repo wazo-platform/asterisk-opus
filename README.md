@@ -1,7 +1,5 @@
 # Asterisk Opus/VP8 patch
 
-**Note:** The VP8 format module has not yet been updated for Asterisk 13.
-
 **Note:** This code applies to Asterisk 13.  Other versions of this patch are available:
 
 * [Asterisk 11](https://github.com/seanbright/asterisk-opus/tree/asterisk-11)

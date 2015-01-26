@@ -40,8 +40,10 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/mod_format.h"
 #include "asterisk/module.h"
 #include "asterisk/endian.h"
+#include "asterisk/format_cache.h"
 
 /* VP8 passthrough */
+#define FRAME_ENDED	0x8000
 
 #define BUF_SIZE	4096
 struct vp8_desc {
@@ -74,14 +76,12 @@ static struct ast_frame *vp8_read(struct ast_filestream *s, int *whennext)
 	}
 
 	len = ntohs(len);
-	mark = (len & 0x8000) ? 1 : 0;
+	mark = (len & FRAME_ENDED) ? 1 : 0;
 	len &= 0x7fff;
 	if (len > BUF_SIZE) {
 		ast_log(LOG_WARNING, "Length %d is too long\n", len);
 		len = BUF_SIZE;	/* XXX truncate */
 	}
-	s->fr.frametype = AST_FRAME_VIDEO;
-	ast_format_set(&s->fr.subclass.format, AST_FORMAT_VP8, 0);
 	s->fr.mallocd = 0;
 	AST_FRAME_SET_BUFFER(&s->fr, s->buf, AST_FRIENDLY_OFFSET, len);
 	if ((res = fread(s->fr.data.ptr, 1, s->fr.datalen, s->f)) != s->fr.datalen) {
@@ -92,9 +92,7 @@ static struct ast_frame *vp8_read(struct ast_filestream *s, int *whennext)
 	}
 	s->fr.samples = fs->lastts;
 	s->fr.datalen = len;
-    if (mark) {
-		ast_format_set_video_mark(&s->fr.subclass.format);
-	}
+	s->fr.subclass.frame_ending = mark;
 	s->fr.delivery.tv_sec = 0;
 	s->fr.delivery.tv_usec = 0;
 	if ((res = fread(&ts, 1, sizeof(ts), s->f)) == sizeof(ts)) {
@@ -118,12 +116,7 @@ static int vp8_write(struct ast_filestream *s, struct ast_frame *f)
 		return -1;
 	}
 
-	mark = ast_format_get_video_mark(&f->subclass.format) ? 0x8000 : 0;
-	if (f->subclass.format.id != AST_FORMAT_VP8) {
-		ast_log(LOG_WARNING, "Asked to write non-VP8 frame (%s)!\n", ast_getformatname(&f->subclass.format));
-		return -1;
-	}
-
+	mark = f->subclass.frame_ending ? FRAME_ENDED : 0;
 	ts = htonl(f->samples);
 	if ((res = fwrite(&ts, 1, sizeof(ts), s->f)) != sizeof(ts)) {
 		ast_log(LOG_WARNING, "Bad write (%d/4): %s\n", res, strerror(errno));
@@ -190,8 +183,7 @@ static struct ast_format_def vp8_f = {
 
 static int load_module(void)
 {
-	ast_format_set(&vp8_f.format, AST_FORMAT_VP8, 0);
-
+	vp8_f.format = ast_format_vp8;
 	if (ast_format_def_register(&vp8_f)) {
 		return AST_MODULE_LOAD_FAILURE;
 	}
