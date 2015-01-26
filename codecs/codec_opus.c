@@ -514,49 +514,9 @@ static int reload(void)
 	return AST_MODULE_LOAD_SUCCESS;
 }
 
-static int opus_samples_count(struct ast_frame *frame)
-{
-	return opus_packet_get_nb_samples(frame->data.ptr, frame->datalen, 48000);
-}
-
-static int (*save_samples_count)(struct ast_frame *);
-
-static int override_opus_samples_count(void)
-{
-	struct ast_codec *codec;
-
-	if (!(codec = ast_codec_get("opus", AST_MEDIA_TYPE_AUDIO, 48000))) {
-		return 1;
-	}
-
-	save_samples_count = codec->samples_count;
-	codec->samples_count = opus_samples_count;
-
-	ao2_ref(codec, -1);
-
-	return 0;
-}
-
-static int restore_opus_samples_count(void)
-{
-	struct ast_codec *codec;
-
-	if (!(codec = ast_codec_get("opus", AST_MEDIA_TYPE_AUDIO, 48000))) {
-		return 1;
-	}
-
-	codec->samples_count = save_samples_count;
-
-	ao2_ref(codec, -1);
-
-	return 0;
-}
-
 static int unload_module(void)
 {
 	int res = 0;
-
-	res |= restore_opus_samples_count();
 
 	res |= ast_unregister_translator(&opustolin);
 	res |= ast_unregister_translator(&lintoopus);
@@ -577,10 +537,6 @@ static int load_module(void)
 	int res = 0;
 
 	if (parse_config(0)) {
-		return AST_MODULE_LOAD_DECLINE;
-	}
-
-	if (override_opus_samples_count()) {
 		return AST_MODULE_LOAD_DECLINE;
 	}
 
