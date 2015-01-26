@@ -16,6 +16,7 @@ The patch was built on top of Asterisk 13 SVN r431089: applying it on different 
 
     cd asterisk-13-svn
     cp /path/to/asterisk-opus/codecs/* codecs/
+    cp /path/to/asterisk-opus/formats/* formats/
     patch -p1 < /path/to/asterisk-opus/asterisk.patch
 
 Run the bootstrap script to regenerate the configure:
