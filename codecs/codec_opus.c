@@ -43,6 +43,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
 #include "asterisk/translate.h"
 #include "asterisk/module.h"
+#include "asterisk/cli.h"
 #include "asterisk/config.h"
 #include "asterisk/utils.h"
 
@@ -55,8 +56,12 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/slin.h"
 #include "ex_opus.h"
 
-static int encoder_id;
-static int decoder_id;
+static struct codec_usage {
+	int encoder_id;
+	int decoder_id;
+	int encoders;
+	int decoders;
+} usage;
 
 /* Private structures */
 struct opus_coder_pvt {
@@ -113,7 +118,9 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 
 	opus_encoder_ctl(opvt->opus, OPUS_SET_INBAND_FEC(opvt->fec));
 	opvt->framesize = sampling_rate/50;
-	opvt->id = ast_atomic_fetchadd_int(&encoder_id, 1) + 1;
+	opvt->id = ast_atomic_fetchadd_int(&usage.encoder_id, 1) + 1;
+
+	ast_atomic_fetchadd_int(&usage.encoders, +1);
 
 	ast_debug(3, "Created encoder #%d (%d -> opus)\n", opvt->id, sampling_rate);
 
@@ -140,7 +147,9 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 		return -1;
 	}
 
-	opvt->id = ast_atomic_fetchadd_int(&decoder_id, 1) + 1;
+	opvt->id = ast_atomic_fetchadd_int(&usage.decoder_id, 1) + 1;
+
+	ast_atomic_fetchadd_int(&usage.decoders, +1);
 
 	ast_debug(3, "Created decoder #%d (opus -> %d)\n", opvt->id, sampling_rate);
 
@@ -251,6 +260,8 @@ static void lintoopus_destroy(struct ast_trans_pvt *arg)
 	opus_encoder_destroy(opvt->opus);
 	opvt->opus = NULL;
 
+	ast_atomic_fetchadd_int(&usage.encoders, -1);
+
 	ast_debug(3, "Destroyed encoder #%d (%d->opus)\n", opvt->id, opvt->sampling_rate);
 }
 
@@ -265,7 +276,35 @@ static void opustolin_destroy(struct ast_trans_pvt *arg)
 	opus_decoder_destroy(opvt->opus);
 	opvt->opus = NULL;
 
+	ast_atomic_fetchadd_int(&usage.decoders, -1);
+
 	ast_debug(3, "Destroyed decoder #%d (opus->%d)\n", opvt->id, opvt->sampling_rate);
+}
+
+static char *handle_cli_opus_show(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+{
+	struct codec_usage copy;
+
+	switch (cmd) {
+	case CLI_INIT:
+		e->command = "opus show";
+		e->usage =
+			"Usage: opus show\n"
+			"       Displays Opus encoder/decoder utilization.\n";
+		return NULL;
+	case CLI_GENERATE:
+		return NULL;
+	}
+
+	if (a->argc != 2) {
+		return CLI_SHOWUSAGE;
+	}
+
+	copy = usage;
+
+	ast_cli(a->fd, "%d/%d encoders/decoders are in use.\n", copy.encoders, copy.decoders);
+
+	return CLI_SUCCESS;
 }
 
 /* Translators */
@@ -491,6 +530,10 @@ static struct ast_translator lin48toopus = {
         .buf_size = BUFFER_SAMPLES * 2,
 };
 
+static struct ast_cli_entry cli[] = {
+	AST_CLI_DEFINE(handle_cli_opus_show, "Display Opus codec utilization.")
+};
+
 static int reload(void)
 {
 	/* Reload does nothing */
@@ -512,6 +555,8 @@ static int unload_module(void)
 	res |= ast_unregister_translator(&opustolin48);
 	res |= ast_unregister_translator(&lin48toopus);
 
+	ast_cli_unregister_multiple(cli, ARRAY_LEN(cli));
+
 	return res;
 }
 
@@ -529,6 +574,8 @@ static int load_module(void)
 	res |= ast_register_translator(&lin24toopus);
 	res |= ast_register_translator(&opustolin48);
 	res |= ast_register_translator(&lin48toopus);
+
+	ast_cli_register_multiple(cli, ARRAY_LEN(cli));
 
 	return res;
 }
