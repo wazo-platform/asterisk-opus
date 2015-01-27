@@ -49,17 +49,14 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #define	BUFFER_SAMPLES	8000
 #define	OPUS_SAMPLES	160
 
-#define USE_FEC			0
+#define USE_FEC		0
 
 /* Sample frame data */
 #include "asterisk/slin.h"
 #include "ex_opus.h"
 
-/* FIXME: Test */
-#include "asterisk/file.h"
-
-static int encid;
-static int decid;
+static int encoder_id;
+static int decoder_id;
 
 /* Private structures */
 struct opus_coder_pvt {
@@ -104,21 +101,21 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 
 	if (sampling_rate == 8000) {
 		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
-	} else if(sampling_rate == 12000) {
+	} else if (sampling_rate == 12000) {
 		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_MEDIUMBAND));
-	} else if(sampling_rate == 16000) {
+	} else if (sampling_rate == 16000) {
 		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_WIDEBAND));
-	} else if(sampling_rate == 24000) {
+	} else if (sampling_rate == 24000) {
 		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_SUPERWIDEBAND));
-	} else if(sampling_rate == 48000) {
+	} else if (sampling_rate == 48000) {
 		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_FULLBAND));
 	}
 
 	opus_encoder_ctl(opvt->opus, OPUS_SET_INBAND_FEC(opvt->fec));
 	opvt->framesize = sampling_rate/50;
-	opvt->id = ++encid;
+	opvt->id = ast_atomic_fetchadd_int(&encoder_id, 1) + 1;
 
-	ast_debug(3, "Created encoder #%d (%d->opus)\n", opvt->id, sampling_rate);
+	ast_debug(3, "Created encoder #%d (%d -> opus)\n", opvt->id, sampling_rate);
 
 	return 0;
 }
@@ -143,9 +140,9 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 		return -1;
 	}
 
-	opvt->id = ++decid;
+	opvt->id = ast_atomic_fetchadd_int(&decoder_id, 1) + 1;
 
-	ast_debug(3, "Created decoder #%d (opus->%d)\n", opvt->id, sampling_rate);
+	ast_debug(3, "Created decoder #%d (opus -> %d)\n", opvt->id, sampling_rate);
 
 	return 0;
 }
@@ -192,9 +189,7 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 		opvt->framesize,
 		opvt->framesize * 2);
 
-	datalen = opus_encode(opvt->opus, opvt->buf, opvt->framesize, pvt->outbuf.uc, BUFFER_SAMPLES);
-
-	if (datalen < 0) {
+	if ((datalen = opus_encode(opvt->opus, opvt->buf, opvt->framesize, pvt->outbuf.uc, BUFFER_SAMPLES)) < 0) {
 		ast_log(LOG_ERROR, "Error encoding the Opus frame: %s\n", opus_strerror(datalen));
 		return NULL;
 	}
@@ -219,7 +214,7 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	int error = 0;
+	int samples = 0;
 
 	/* Decode */
 	ast_debug(3, "[Decoder #%d (%d)] %d samples, %d bytes\n",
@@ -228,15 +223,13 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		f->samples,
 		f->datalen);
 
-	error = opus_decode(opvt->opus, f->data.ptr, f->datalen, pvt->outbuf.i16, BUFFER_SAMPLES, opvt->fec);
-
-	if (error < 0) {
-		ast_log(LOG_ERROR, "Error decoding the Opus frame: %s\n", opus_strerror(error));
+	if ((samples = opus_decode(opvt->opus, f->data.ptr, f->datalen, pvt->outbuf.i16, BUFFER_SAMPLES, opvt->fec)) < 0) {
+		ast_log(LOG_ERROR, "Error decoding the Opus frame: %s\n", opus_strerror(samples));
 		return -1;
 	}
 
-	pvt->samples += error;
-	pvt->datalen += error * 2;
+	pvt->samples += samples;
+	pvt->datalen += samples * 2;
 
 	ast_debug(3, "[Decoder #%d (%d)]   >> Got %d samples, %d bytes\n",
 		opvt->id,
@@ -498,27 +491,17 @@ static struct ast_translator lin48toopus = {
         .buf_size = BUFFER_SAMPLES * 2,
 };
 
-/* Configuration and module setup */
-static int parse_config(int reload)
-{
-	/* TODO: place stuff to negotiate/enforce here */
-	return 0;
-}
-
 static int reload(void)
 {
-	if (parse_config(1)) {
-		return AST_MODULE_LOAD_DECLINE;
-	}
-
+	/* Reload does nothing */
 	return AST_MODULE_LOAD_SUCCESS;
 }
 
 static int unload_module(void)
 {
-	int res = 0;
+	int res;
 
-	res |= ast_unregister_translator(&opustolin);
+	res = ast_unregister_translator(&opustolin);
 	res |= ast_unregister_translator(&lintoopus);
 	res |= ast_unregister_translator(&opustolin12);
 	res |= ast_unregister_translator(&lin12toopus);
@@ -534,13 +517,9 @@ static int unload_module(void)
 
 static int load_module(void)
 {
-	int res = 0;
+	int res;
 
-	if (parse_config(0)) {
-		return AST_MODULE_LOAD_DECLINE;
-	}
-
-	res |= ast_register_translator(&opustolin);
+	res = ast_register_translator(&opustolin);
 	res |= ast_register_translator(&lintoopus);
 	res |= ast_register_translator(&opustolin12);
 	res |= ast_register_translator(&lin12toopus);
