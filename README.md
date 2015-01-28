@@ -1,6 +1,6 @@
 # Asterisk Opus/VP8 patch
 
-**Note:** This code applies to Asterisk 13.  Other versions of this patch are available:
+**Note:** This code applies to Asterisk 13.0.  Other versions of this patch are available:
 
 * [Asterisk 11](https://github.com/seanbright/asterisk-opus/tree/asterisk-11)
 * [Asterisk 12](https://github.com/seanbright/asterisk-opus/tree/asterisk-12)
