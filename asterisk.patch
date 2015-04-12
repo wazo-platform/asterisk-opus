@@ -6,10 +6,10 @@ diff -urN a/main/Makefile b/main/Makefile
  AST_LIBS+=$(UUID_LIB)
  AST_LIBS+=$(CRYPT_LIB)
 +AST_LIBS+=$(OPUS_LIB)
+ AST_LIBS+=$(AST_CLANG_BLOCKS_LIBS)
  
  ifneq ($(findstring $(OSARCH), linux-gnu uclinux linux-uclibc kfreebsd-gnu),)
-   ifneq ($(findstring LOADABLE_MODULES,$(MENUSELECT_CFLAGS)),)
-@@ -159,6 +160,7 @@
+@@ -160,6 +161,7 @@
  bucket.o: _ASTCFLAGS+=$(URIPARSER_INCLUDE)
  crypt.o: _ASTCFLAGS+=$(CRYPT_INCLUDE)
  uuid.o: _ASTCFLAGS+=$(UUID_INCLUDE)
