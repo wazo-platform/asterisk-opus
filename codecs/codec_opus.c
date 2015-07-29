@@ -294,7 +294,7 @@ static void lintoopus_destroy(struct ast_trans_pvt *arg)
 {
 	struct opus_coder_pvt *opvt = arg->pvt;
 
-	if (opvt || opvt->opus) {
+	if (!opvt || !opvt->opus) {
 		return;
 	}
 
