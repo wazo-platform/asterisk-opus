@@ -202,6 +202,7 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 				  opvt->framesize,
 				  opvt->framesize * 2);
 
+		samples += opvt->framesize;
 		pvt->samples -= opvt->framesize;
 
 		if (status < 0) {
@@ -209,7 +210,13 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 		} else {
 			struct ast_frame *current = ast_trans_frameout(pvt,
 				status,
-				opvt->multiplier * samples);
+				opvt->multiplier * opvt->framesize);
+
+			ast_debug(3, "[Encoder #%d (%d)]   >> Got %d samples, %d bytes\n",
+					  opvt->id,
+					  opvt->sampling_rate,
+					  opvt->multiplier * opvt->framesize,
+					  status);
 
 			if (!current) {
 				continue;
@@ -219,13 +226,6 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 				result = current;
 			}
 			last = current;
-			samples += opvt->framesize;
-
-			ast_debug(3, "[Encoder #%d (%d)]   >> Got %d samples, %d bytes\n",
-					  opvt->id,
-					  opvt->sampling_rate,
-					  opvt->multiplier * opvt->framesize,
-					  status);
 		}
 	}
 
