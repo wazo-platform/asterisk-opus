@@ -46,6 +46,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/cli.h"
 #include "asterisk/config.h"
 #include "asterisk/utils.h"
+#include "asterisk/linkedlists.h"
 
 #define	BUFFER_SAMPLES	8000
 #define	OPUS_SAMPLES	160
@@ -183,41 +184,57 @@ static int lintoopus_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	int datalen = 0;	/* output bytes */
-	int samples = 0;	/* output samples */
+	struct ast_frame *result = NULL;
+	struct ast_frame *last = NULL;
+	int samples = 0; /* output samples */
 
-	/* We can't work on anything less than a frame in size */
-	if (pvt->samples < opvt->framesize) {
-		return NULL;
+	while (pvt->samples >= opvt->framesize) {
+		/* status is either error or output bytes */
+		const int status = opus_encode(opvt->opus,
+			opvt->buf + samples,
+			opvt->framesize,
+			pvt->outbuf.uc,
+			BUFFER_SAMPLES);
+
+		ast_debug(3, "[Encoder #%d (%d)] %d samples, %d bytes\n",
+				  opvt->id,
+				  opvt->sampling_rate,
+				  opvt->framesize,
+				  opvt->framesize * 2);
+
+		samples += opvt->framesize;
+		pvt->samples -= opvt->framesize;
+
+		if (status < 0) {
+			ast_log(LOG_ERROR, "Error encoding the Opus frame: %s\n", opus_strerror(status));
+		} else {
+			struct ast_frame *current = ast_trans_frameout(pvt,
+				status,
+				opvt->multiplier * opvt->framesize);
+
+			ast_debug(3, "[Encoder #%d (%d)]   >> Got %d samples, %d bytes\n",
+					  opvt->id,
+					  opvt->sampling_rate,
+					  opvt->multiplier * opvt->framesize,
+					  status);
+
+			if (!current) {
+				continue;
+			} else if (last) {
+				AST_LIST_NEXT(last, frame_list) = current;
+			} else {
+				result = current;
+			}
+			last = current;
+		}
 	}
-
-	/* Encode 160 samples (or more if it's not narrowband) */
-	ast_debug(3, "[Encoder #%d (%d)] %d samples, %d bytes\n",
-		opvt->id,
-		opvt->sampling_rate,
-		opvt->framesize,
-		opvt->framesize * 2);
-
-	if ((datalen = opus_encode(opvt->opus, opvt->buf, opvt->framesize, pvt->outbuf.uc, BUFFER_SAMPLES)) < 0) {
-		ast_log(LOG_ERROR, "Error encoding the Opus frame: %s\n", opus_strerror(datalen));
-		return NULL;
-	}
-
-	samples += opvt->framesize;
-	pvt->samples -= opvt->framesize;
 
 	/* Move the data at the end of the buffer to the front */
-	if (pvt->samples) {
+	if (samples) {
 		memmove(opvt->buf, opvt->buf + samples, pvt->samples * 2);
 	}
 
-	ast_debug(3, "[Encoder #%d (%d)]   >> Got %d samples, %d bytes\n",
-		opvt->id,
-		opvt->sampling_rate,
-		opvt->multiplier * samples,
-		datalen);
-
-	return ast_trans_frameout(pvt, datalen, opvt->multiplier * samples);
+	return result;
 }
 
 static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
