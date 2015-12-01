@@ -26,7 +26,7 @@
  *
  * \ingroup codecs
  *
- * \extref The Opus library - http://opus-codec.org
+ * \extref http://www.opus-codec.org/docs/html_api-1.1.0/
  *
  */
 
@@ -51,8 +51,6 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #define	BUFFER_SAMPLES	8000
 #define	OPUS_SAMPLES	160
 
-#define USE_FEC		0
-
 /* Sample frame data */
 #include "asterisk/slin.h"
 #include "ex_opus.h"
@@ -69,55 +67,64 @@ struct opus_coder_pvt {
 	void *opus;	/* May be encoder or decoder */
 	int sampling_rate;
 	int multiplier;
-	int fec;
 	int id;
 	int16_t buf[BUFFER_SAMPLES];	/* FIXME */
 	int framesize;
+	int inited;
 };
 
-static int valid_sampling_rate(int rate)
-{
-	return rate == 8000
-		|| rate == 12000
-		|| rate == 16000
-		|| rate == 24000
-		|| rate == 48000;
-}
+struct opus_attr {
+	unsigned int maxbitrate;
+	unsigned int maxplayrate;
+	unsigned int unused; /* was minptime */
+	unsigned int stereo;
+	unsigned int cbr;
+	unsigned int fec;
+	unsigned int dtx;
+	unsigned int spropmaxcapturerate; /* FIXME: not utilised, yet */
+	unsigned int spropstereo;
+};
 
 /* Helper methods */
 static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	int error = 0;
+	struct opus_attr *attr = pvt->explicit_dst ? ast_format_get_attribute_data(pvt->explicit_dst) : NULL;
+	const opus_int32 bitrate = attr ? attr->maxbitrate  : 510000;
+	const int maxplayrate    = attr ? attr->maxplayrate : 48000;
+	const int channels       = attr ? attr->stereo + 1  : 1;
+	const opus_int32 vbr     = attr ? !(attr->cbr)      : 1;
+	const opus_int32 fec     = attr ? attr->fec         : 1;
+	const opus_int32 dtx     = attr ? attr->dtx         : 0;
+	const int application    = OPUS_APPLICATION_VOIP;
+	int status = 0;
 
-	if (!valid_sampling_rate(sampling_rate)) {
+	opvt->opus = opus_encoder_create(sampling_rate, channels, application, &status);
+
+	if (status != OPUS_OK) {
+		ast_log(LOG_ERROR, "Error creating the Opus encoder: %s\n", opus_strerror(status));
 		return -1;
 	}
+
+	if (sampling_rate <= 8000 || maxplayrate <= 8000) {
+		status = opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
+	} else if (sampling_rate <= 12000 || maxplayrate <= 12000) {
+		status = opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_MEDIUMBAND));
+	} else if (sampling_rate <= 16000 || maxplayrate <= 16000) {
+		status = opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_WIDEBAND));
+	} else if (sampling_rate <= 24000 || maxplayrate <= 24000) {
+		status = opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_SUPERWIDEBAND));
+	} /* else we use the default: OPUS_BANDWIDTH_FULLBAND */
+
+	if (0 < bitrate && bitrate != 510000) {
+		status = opus_encoder_ctl(opvt->opus, OPUS_SET_BITRATE(bitrate));
+	} /* else we use the default: OPUS_AUTO */
+	status = opus_encoder_ctl(opvt->opus, OPUS_SET_VBR(vbr));
+	status = opus_encoder_ctl(opvt->opus, OPUS_SET_INBAND_FEC(fec));
+	status = opus_encoder_ctl(opvt->opus, OPUS_SET_DTX(dtx));
 
 	opvt->sampling_rate = sampling_rate;
 	opvt->multiplier = 48000/sampling_rate;
-	opvt->fec = USE_FEC;
-
-	opvt->opus = opus_encoder_create(sampling_rate, 1, OPUS_APPLICATION_VOIP, &error);
-
-	if (error != OPUS_OK) {
-		ast_log(LOG_ERROR, "Error creating the Opus encoder: %s\n", opus_strerror(error));
-		return -1;
-	}
-
-	if (sampling_rate == 8000) {
-		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
-	} else if (sampling_rate == 12000) {
-		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_MEDIUMBAND));
-	} else if (sampling_rate == 16000) {
-		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_WIDEBAND));
-	} else if (sampling_rate == 24000) {
-		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_SUPERWIDEBAND));
-	} else if (sampling_rate == 48000) {
-		opus_encoder_ctl(opvt->opus, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_FULLBAND));
-	}
-
-	opus_encoder_ctl(opvt->opus, OPUS_SET_INBAND_FEC(opvt->fec));
 	opvt->framesize = sampling_rate/50;
 	opvt->id = ast_atomic_fetchadd_int(&usage.encoder_id, 1) + 1;
 
@@ -128,20 +135,17 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 	return 0;
 }
 
-static int opus_decoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
+static int opus_decoder_construct(struct ast_trans_pvt *pvt, struct ast_frame *f)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
+	struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format);
+	const int channels = attr ? attr->spropstereo + 1 : 1;
 	int error = 0;
 
-	if (!valid_sampling_rate(sampling_rate)) {
-		return -1;
-	}
+	opvt->sampling_rate = pvt->t->dst_codec.sample_rate;
+	opvt->multiplier = 48000/opvt->sampling_rate;
 
-	opvt->sampling_rate = sampling_rate;
-	opvt->multiplier = 48000/sampling_rate;
-	opvt->fec = USE_FEC;	/* FIXME: should be triggered by chan_sip */
-
-	opvt->opus = opus_decoder_create(sampling_rate, 1, &error);
+	opvt->opus = opus_decoder_create(opvt->sampling_rate, channels, &error);
 
 	if (error != OPUS_OK) {
 		ast_log(LOG_ERROR, "Error creating the Opus decoder: %s\n", opus_strerror(error));
@@ -152,7 +156,7 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 
 	ast_atomic_fetchadd_int(&usage.decoders, +1);
 
-	ast_debug(3, "Created decoder #%d (opus -> %d)\n", opvt->id, sampling_rate);
+	ast_debug(3, "Created decoder #%d (opus -> %d)\n", opvt->id, opvt->sampling_rate);
 
 	return 0;
 }
@@ -165,7 +169,11 @@ static int lintoopus_new(struct ast_trans_pvt *pvt)
 
 static int opustolin_new(struct ast_trans_pvt *pvt)
 {
-	return opus_decoder_construct(pvt, pvt->t->dst_codec.sample_rate);
+	struct opus_coder_pvt *opvt = pvt->pvt;
+
+	opvt->inited = 0; /* we do not know the "sprop" values, yet */
+
+	return 0;
 }
 
 static int lintoopus_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
@@ -240,7 +248,18 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	int samples = 0;
+	struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format);
+	/* FIXME: support native PLC of Opus and detect a previously lost frame */
+	const int decode_fec = attr ? attr->fec : 0;
+	int status = 0;
+
+	if (!opvt->inited) {
+		status = opus_decoder_construct(pvt, f);
+		opvt->inited = 1;
+		if (status) {
+			return status;
+		}
+	}
 
 	/* Decode */
 	ast_debug(3, "[Decoder #%d (%d)] %d samples, %d bytes\n",
@@ -249,13 +268,13 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		f->samples,
 		f->datalen);
 
-	if ((samples = opus_decode(opvt->opus, f->data.ptr, f->datalen, pvt->outbuf.i16, BUFFER_SAMPLES, opvt->fec)) < 0) {
-		ast_log(LOG_ERROR, "Error decoding the Opus frame: %s\n", opus_strerror(samples));
+	if ((status = opus_decode(opvt->opus, f->data.ptr, f->datalen, pvt->outbuf.i16, BUFFER_SAMPLES, 0)) < 0) {
+		ast_log(LOG_ERROR, "Error decoding the Opus frame: %s\n", opus_strerror(status));
 		return -1;
 	}
 
-	pvt->samples += samples;
-	pvt->datalen += samples * 2;
+	pvt->samples += status;
+	pvt->datalen += status * 2;
 
 	ast_debug(3, "[Decoder #%d (%d)]   >> Got %d samples, %d bytes\n",
 		opvt->id,
