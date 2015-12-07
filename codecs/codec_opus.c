@@ -48,7 +48,8 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/utils.h"
 #include "asterisk/linkedlists.h"
 
-#define	BUFFER_SAMPLES	8000
+#define	BUFFER_SAMPLES	5760
+#define	MAX_CHANNELS	2
 #define	OPUS_SAMPLES	160
 
 /* Sample frame data */
@@ -68,9 +69,12 @@ struct opus_coder_pvt {
 	int sampling_rate;
 	int multiplier;
 	int id;
-	int16_t buf[BUFFER_SAMPLES];	/* FIXME */
+	int16_t buf[BUFFER_SAMPLES];
 	int framesize;
 	int inited;
+	int channels;
+	int decode_fec_incoming;
+	int previous_lost;
 };
 
 struct opus_attr {
@@ -82,7 +86,7 @@ struct opus_attr {
 	unsigned int fec;
 	unsigned int dtx;
 	unsigned int spropmaxcapturerate; /* FIXME: not utilised, yet */
-	unsigned int spropstereo;
+	unsigned int spropstereo; /* FIXME: currently, we are just mono */
 };
 
 /* Helper methods */
@@ -138,14 +142,14 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 static int opus_decoder_construct(struct ast_trans_pvt *pvt, struct ast_frame *f)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format);
-	const int channels = attr ? attr->spropstereo + 1 : 1;
+	/* struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format); */
 	int error = 0;
 
 	opvt->sampling_rate = pvt->t->dst_codec.sample_rate;
 	opvt->multiplier = 48000/opvt->sampling_rate;
+	opvt->channels = /* attr ? attr->spropstereo + 1 :*/ 1; /* FIXME */;
 
-	opvt->opus = opus_decoder_create(opvt->sampling_rate, channels, &error);
+	opvt->opus = opus_decoder_create(opvt->sampling_rate, opvt->channels, &error);
 
 	if (error != OPUS_OK) {
 		ast_log(LOG_ERROR, "Error creating the Opus decoder: %s\n", opus_strerror(error));
@@ -171,6 +175,7 @@ static int opustolin_new(struct ast_trans_pvt *pvt)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
 
+	opvt->previous_lost = 0; /* we are new and have not lost anything */
 	opvt->inited = 0; /* we do not know the "sprop" values, yet */
 
 	return 0;
@@ -248,12 +253,16 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
-	struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format);
-	/* FIXME: support native PLC of Opus and detect a previously lost frame */
-	const int decode_fec = attr ? attr->fec : 0;
-	int status = 0;
+	int decode_fec;
+	int frame_size;
+	opus_int16 *dst;
+	opus_int32 len;
+	unsigned char *src;
+	int status;
 
-	if (!opvt->inited) {
+	if (!opvt->inited && f->datalen == 0) {
+		return 0; /* we cannot start without data */
+	} else if (!opvt->inited) { /* 0 < f->datalen */
 		status = opus_decoder_construct(pvt, f);
 		opvt->inited = 1;
 		if (status) {
@@ -261,28 +270,212 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		}
 	}
 
-	/* Decode */
-	ast_debug(3, "[Decoder #%d (%d)] %d samples, %d bytes\n",
-		opvt->id,
-		opvt->sampling_rate,
-		f->samples,
-		f->datalen);
+	/*
+	 * When we get a frame indicator (ast_null_frame), format is NULL. Because FEC
+	 * status can change any time (SDP re-negotiation), we save again and again.
+	 */
+	if (f->subclass.format) {
+		struct opus_attr *attr = ast_format_get_attribute_data(f->subclass.format);
 
-	if ((status = opus_decode(opvt->opus, f->data.ptr, f->datalen, pvt->outbuf.i16, BUFFER_SAMPLES, 0)) < 0) {
-		ast_log(LOG_ERROR, "Error decoding the Opus frame: %s\n", opus_strerror(status));
-		return -1;
+		if (attr) {
+			opvt->decode_fec_incoming = attr->fec;
+		}
+	}
+	decode_fec = opvt->decode_fec_incoming;
+
+	/*
+	 * The Opus Codec, actually its library allows
+	 * - Forward-Error Correction (FEC), and
+	 * - native Packet-Loss Concealment (PLC).
+	 * The sender might include FEC. If there is no FEC, because it was not send
+	 * or the FEC data got lost, the API of the Opus library does PLC instead.
+	 * Therefore we have three boolean variables:
+	 * - current frame got lost: f->datalen == 0,
+	 * - previous frame got lost: opvt->previous_lost, and
+	 * - FEC negotiated on SDP layer: decode_fec.
+	 * Now, we go through all cases. Because some cases use the same source code
+	 * we have less than 8 (2^3) cases.
+	 *
+	 * Some notes on the coding style of this section:
+	 * This code section is passed for each incoming frame, normally every
+	 * 20 milliseconds. For each channel, this code is passed individually.
+	 * Therefore, this code should be as performant as possible. On the other
+	 * hand, PLC plus FEC is complicated. Therefore, code readability is one
+	 * prerequisite to understand, debug, and review this code section. Because
+	 * we do have optimising compilers, we are able to sacrify optimised code
+	 * for code readability. If you find an error or unnecessary calculation
+	 * which is not optimised = removed by your compiler, please, create an
+	 * issue on <https://github.com/seanbright/asterisk-opus/issues>. I am just
+	 * a human and human do mistakes. However, humans loves to learn.
+	 *
+	 * Source-code examples are
+	 * - <https://git.xiph.org/?p=opus.git;a=history;f=src/opus_demo.c>,
+	 * - <https://freeswitch.org/stash/projects/FS/repos/freeswitch/browse/src/mod/codecs/mod_opus/mod_opus.c>
+	 * and the official mailing list itself:
+	 * <https://www.google.de/search?q=site:lists.xiph.org+opus>.
+	 */
+
+	/* Case 1 and 2 */
+	if (f->datalen == 0 && opvt->previous_lost) {
+		/*
+		 * If this frame and the previous frame got lost, we do not have any
+		 * data for FEC. Therefore, we go for PLC on the previous frame. However,
+		 * the next frame could include FEC for the currently lost frame.
+		 * Therefore, we "wait" for the next frame to fix the current frame.
+		 */
+		decode_fec = 0; /* = do PLC */
+		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
+		len = 0;
+		src = NULL;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		/*
+		 * Save the state of the current frame, whether it is lost = "wait".
+		 * That way, we are able to decide whether to do FEC next time.
+		 */
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
 	}
 
-	pvt->samples += status;
-	pvt->datalen += status * 2;
+	/* Case 3 */
+	if (f->datalen == 0 && !decode_fec) { /* !opvt->previous_lost */
+		/*
+		 * The sender stated in SDP: "I am not going to provide FEC". Therefore,
+		 * we do not wait for the next frame and do PLC right away.
+		 */
+		decode_fec = 0;
+		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
+		len = f->datalen;
+		src = NULL;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
+	}
 
-	ast_debug(3, "[Decoder #%d (%d)]   >> Got %d samples, %d bytes\n",
-		opvt->id,
-		opvt->sampling_rate,
-		pvt->samples,
-		pvt->datalen);
+	/* Case 4 */
+	if (f->datalen == 0) { /* decode_fec && !opvt->previous_lost */
+		/*
+		 * The previous frame was of no issue. Therefore, we do not have to
+		 * reconstruct it. We do not have any data in the current frame but the
+		 * sender might give us FEC with the next frame. We cannot do anything
+		 * but wait for the next frame. Till Asterisk 13.7, this creates the
+		 * warning "opustolin48 did not update samples 0". Please, ignore this
+		 * warning or apply the patch included in the GitHub repository.
+		 */
+		status = 0; /* no samples to add currently */
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
+	}
 
-	return 0;
+	/* Case 5 and 6 */
+	if (!opvt->previous_lost) { /* 0 < f->datalen */
+		/*
+		 * The perfect case - the previous frame was not lost and we have data
+		 * in the current frame. Therefore, neither FEC nor PLC are required.
+		 */
+		decode_fec = 0;
+		frame_size = BUFFER_SAMPLES; /* parse everything in this frame */
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
+		len = f->datalen;
+		src = f->data.ptr;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
+	}
+
+	/* Case 7 */
+	if (!decode_fec) { /* 0 < f->datalen && opvt->previous_lost */
+		/*
+		 * The previous frame got lost and the sender stated in SDP: "I am not
+		 * going to provide FEC". Therefore, we do PLC. Furthermore, we try to
+		 * decode the current frame because we have data. This creates jitter
+		 * because we create double the amount of frames as normal, see
+		 * <https://issues.asterisk.org/jira/browse/ASTERISK-25483>. If this is
+		 * an issue for your use-case, please, file and issue report on
+		 * <https://github.com/seanbright/asterisk-opus/issues>.
+		 */
+		decode_fec = 0;
+		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
+		len = 0;
+		src = NULL;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		decode_fec = 0;
+		frame_size = BUFFER_SAMPLES; /* parse everything */
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels); /* append after PLC data */
+		len = f->datalen;
+		src = f->data.ptr;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
+	}
+
+	/* Case 8; Last Case */
+	{ /* 0 < f->datalen && opvt->previous_lost && decode_fec */
+		decode_fec = 1;
+		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
+		len = f->datalen;
+		src = f->data.ptr;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		decode_fec = 0;
+		frame_size = BUFFER_SAMPLES; /* parse everything */
+		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels); /* append after FEC data */
+		len = f->datalen;
+		src = f->data.ptr;
+		status = opus_decode(opvt->opus, src, len, dst, frame_size, decode_fec);
+		if (status < 0) {
+			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
+		} else {
+			pvt->samples += status;
+			pvt->datalen += status * opvt->channels * sizeof(int16_t);
+		}
+		opvt->previous_lost = (f->datalen == 0 || status < 0);
+		return 0;
+	}
 }
 
 static void lintoopus_destroy(struct ast_trans_pvt *arg)
@@ -363,7 +556,8 @@ static struct ast_translator opustolin = {
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
         .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * 2,
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .native_plc = 1,
 };
 
 static struct ast_translator lintoopus = {
@@ -408,7 +602,8 @@ static struct ast_translator opustolin12 = {
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
         .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * 2,
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .native_plc = 1,
 };
 
 static struct ast_translator lin12toopus = {
@@ -452,7 +647,8 @@ static struct ast_translator opustolin16 = {
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
         .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * 2,
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .native_plc = 1,
 };
 
 static struct ast_translator lin16toopus = {
@@ -497,7 +693,8 @@ static struct ast_translator opustolin24 = {
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
         .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * 2,
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .native_plc = 1,
 };
 
 static struct ast_translator lin24toopus = {
@@ -541,7 +738,8 @@ static struct ast_translator opustolin48 = {
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
         .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * 2,
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .native_plc = 1,
 };
 
 static struct ast_translator lin48toopus = {
