@@ -1,0 +1,22 @@
+--- main/translate.c	(Asterisk 13.6)
++++ main/translate.c	(working copy)
+@@ -381,7 +381,4 @@
+ static int framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
+ {
+-	int ret;
+-	int samples = pvt->samples;	/* initial value */
+-
+ 	/* Copy the last in jb timing info to the pvt */
+ 	ast_copy_flags(&pvt->f, f, AST_FRFLAG_HAS_TIMING_INFO);
+@@ -407,10 +404,5 @@
+ 	 * it otherwise.
+ 	 */
+-	ret = pvt->t->framein(pvt, f);
+-	/* diagnostic ... */
+-	if (pvt->samples == samples)
+-		ast_log(LOG_WARNING, "%s did not update samples %d\n",
+-			pvt->t->name, pvt->samples);
+-	return ret;
++	return pvt->t->framein(pvt, f);
+ }
+ 
