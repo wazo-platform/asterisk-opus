@@ -555,8 +555,8 @@ static struct ast_translator opustolin = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -601,8 +601,8 @@ static struct ast_translator opustolin12 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -646,8 +646,8 @@ static struct ast_translator opustolin16 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -692,8 +692,8 @@ static struct ast_translator opustolin24 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -737,8 +737,8 @@ static struct ast_translator opustolin48 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES,
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16),
+        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
