@@ -50,7 +50,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
 #define	BUFFER_SAMPLES	5760
 #define	MAX_CHANNELS	2
-#define	OPUS_SAMPLES	160
+#define	OPUS_SAMPLES	960
 
 /* Sample frame data */
 #include "asterisk/slin.h"
@@ -209,12 +209,6 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 			pvt->outbuf.uc,
 			BUFFER_SAMPLES);
 
-		ast_debug(3, "[Encoder #%d (%d)] %d samples, %d bytes\n",
-				  opvt->id,
-				  opvt->sampling_rate,
-				  opvt->framesize,
-				  opvt->framesize * 2);
-
 		samples += opvt->framesize;
 		pvt->samples -= opvt->framesize;
 
@@ -223,13 +217,7 @@ static struct ast_frame *lintoopus_frameout(struct ast_trans_pvt *pvt)
 		} else {
 			struct ast_frame *current = ast_trans_frameout(pvt,
 				status,
-				opvt->multiplier * opvt->framesize);
-
-			ast_debug(3, "[Encoder #%d (%d)]   >> Got %d samples, %d bytes\n",
-					  opvt->id,
-					  opvt->sampling_rate,
-					  opvt->multiplier * opvt->framesize,
-					  status);
+				OPUS_SAMPLES);
 
 			if (!current) {
 				continue;
@@ -393,7 +381,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		 * in the current frame. Therefore, neither FEC nor PLC are required.
 		 */
 		decode_fec = 0;
-		frame_size = BUFFER_SAMPLES; /* parse everything in this frame */
+		frame_size = BUFFER_SAMPLES / opvt->multiplier; /* parse everything */
 		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
 		len = f->datalen;
 		src = f->data.ptr;
@@ -432,7 +420,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 			pvt->datalen += status * opvt->channels * sizeof(int16_t);
 		}
 		decode_fec = 0;
-		frame_size = BUFFER_SAMPLES; /* parse everything */
+		frame_size = BUFFER_SAMPLES / opvt->multiplier; /* parse everything */
 		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels); /* append after PLC data */
 		len = f->datalen;
 		src = f->data.ptr;
@@ -462,7 +450,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 			pvt->datalen += status * opvt->channels * sizeof(int16_t);
 		}
 		decode_fec = 0;
-		frame_size = BUFFER_SAMPLES; /* parse everything */
+		frame_size = BUFFER_SAMPLES / opvt->multiplier; /* parse everything */
 		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels); /* append after FEC data */
 		len = f->datalen;
 		src = f->data.ptr;
@@ -555,8 +543,8 @@ static struct ast_translator opustolin = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
+        .buffer_samples = (BUFFER_SAMPLES / (48000 / 8000)) * 2, /* because of possible FEC */
+        .buf_size = (BUFFER_SAMPLES / (48000 / 8000)) * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -601,8 +589,8 @@ static struct ast_translator opustolin12 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
+        .buffer_samples = (BUFFER_SAMPLES / (48000 / 12000)) * 2, /* because of possible FEC */
+        .buf_size = (BUFFER_SAMPLES / (48000 / 12000)) * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -646,8 +634,8 @@ static struct ast_translator opustolin16 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
+        .buffer_samples = (BUFFER_SAMPLES / (48000 / 16000)) * 2, /* because of possible FEC */
+        .buf_size = (BUFFER_SAMPLES / (48000 / 16000)) * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -692,8 +680,8 @@ static struct ast_translator opustolin24 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
-        .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
+        .buffer_samples = (BUFFER_SAMPLES / (48000 / 24000)) * 2, /* because of possible FEC */
+        .buf_size = (BUFFER_SAMPLES / (48000 / 24000)) * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
 
@@ -737,7 +725,7 @@ static struct ast_translator opustolin48 = {
         .destroy = opustolin_destroy,
         .sample = opus_sample,
         .desc_size = sizeof(struct opus_coder_pvt),
-        .buffer_samples = BUFFER_SAMPLES * 2, /* because of possible FEC */
+        .buffer_samples = BUFFER_SAMPLES * 2, /* twice, because of possible FEC */
         .buf_size = BUFFER_SAMPLES * MAX_CHANNELS * sizeof(opus_int16) * 2,
         .native_plc = 1,
 };
