@@ -526,6 +526,7 @@ static char *handle_cli_opus_show(struct ast_cli_entry *e, int cmd, struct ast_c
 
 /* Translators */
 static struct ast_translator opustolin = {
+        .table_cost = AST_TRANS_COST_LY_LL_ORIGSAMP,
         .name = "opustolin",
         .src_codec = {
                 .name = "opus",
@@ -549,6 +550,7 @@ static struct ast_translator opustolin = {
 };
 
 static struct ast_translator lintoopus = {
+        .table_cost = AST_TRANS_COST_LL_LY_ORIGSAMP,
         .name = "lintoopus",
         .src_codec = {
                 .name = "slin",
@@ -572,6 +574,7 @@ static struct ast_translator lintoopus = {
 };
 
 static struct ast_translator opustolin12 = {
+        .table_cost = AST_TRANS_COST_LY_LL_ORIGSAMP - 1,
         .name = "opustolin12",
         .src_codec = {
                 .name = "opus",
@@ -595,6 +598,7 @@ static struct ast_translator opustolin12 = {
 };
 
 static struct ast_translator lin12toopus = {
+        .table_cost = AST_TRANS_COST_LL_LY_ORIGSAMP - 1,
         .name = "lin12toopus",
         .src_codec = {
                 .name = "slin",
@@ -617,6 +621,7 @@ static struct ast_translator lin12toopus = {
 };
 
 static struct ast_translator opustolin16 = {
+        .table_cost = AST_TRANS_COST_LY_LL_ORIGSAMP - 2,
         .name = "opustolin16",
         .src_codec = {
                 .name = "opus",
@@ -640,6 +645,7 @@ static struct ast_translator opustolin16 = {
 };
 
 static struct ast_translator lin16toopus = {
+        .table_cost = AST_TRANS_COST_LL_LY_ORIGSAMP - 2,
         .name = "lin16toopus",
         .src_codec = {
                 .name = "slin",
@@ -663,6 +669,7 @@ static struct ast_translator lin16toopus = {
 };
 
 static struct ast_translator opustolin24 = {
+        .table_cost = AST_TRANS_COST_LY_LL_ORIGSAMP - 4,
         .name = "opustolin24",
         .src_codec = {
                 .name = "opus",
@@ -686,6 +693,7 @@ static struct ast_translator opustolin24 = {
 };
 
 static struct ast_translator lin24toopus = {
+        .table_cost = AST_TRANS_COST_LL_LY_ORIGSAMP - 4,
         .name = "lin24toopus",
         .src_codec = {
                 .name = "slin",
@@ -708,6 +716,7 @@ static struct ast_translator lin24toopus = {
 };
 
 static struct ast_translator opustolin48 = {
+        .table_cost = AST_TRANS_COST_LY_LL_ORIGSAMP - 8,
         .name = "opustolin48",
         .src_codec = {
                 .name = "opus",
@@ -731,6 +740,7 @@ static struct ast_translator opustolin48 = {
 };
 
 static struct ast_translator lin48toopus = {
+        .table_cost = AST_TRANS_COST_LL_LY_ORIGSAMP - 8,
         .name = "lin48toopus",
         .src_codec = {
                 .name = "slin",
