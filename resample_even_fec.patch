@@ -1,5 +1,0 @@
---- codecs/codec_resample.c	(Asterisk 13.7)
-+++ codecs/codec_resample.c	(working copy)
-@@ -41 +41 @@
--#define OUTBUF_SAMPLES   5760
-+#define OUTBUF_SAMPLES   11520
