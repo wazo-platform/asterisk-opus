@@ -33,6 +33,7 @@
 /*** MODULEINFO
 	 <depend>opus</depend>
 	 <conflict>codec_opus</conflict>
+	 <defaultenabled>yes</defaultenabled>
 ***/
 
 #include "asterisk.h"
