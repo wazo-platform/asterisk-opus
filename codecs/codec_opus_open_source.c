@@ -52,6 +52,8 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/config.h"
 #include "asterisk/utils.h"
 #include "asterisk/linkedlists.h"
+#include "asterisk/astobj2.h"
+#include "asterisk/codec.h"
 
 #define	BUFFER_SAMPLES	5760
 #define	MAX_CHANNELS	2
@@ -67,6 +69,14 @@ static struct codec_usage {
 	int encoders;
 	int decoders;
 } usage;
+
+/*
+ * Stores the function pointer 'sample_count' of the cached ast_codec
+ * before this module was loaded. Allows to restore this previous
+ * function pointer, when this module in unloaded.
+ */
+static struct ast_codec *opus_codec; /* codec of the cached format */
+static int (*opus_samples_previous)(struct ast_frame *frame);
 
 /* Private structures */
 struct opus_coder_pvt {
@@ -771,6 +781,13 @@ static struct ast_cli_entry cli[] = {
 	AST_CLI_DEFINE(handle_cli_opus_show, "Display Opus codec utilization.")
 };
 
+static int opus_samples(struct ast_frame *frame)
+{
+	opus_int32 sampling_rate = 48000; /* FIXME */
+
+	return opus_packet_get_nb_samples(frame->data.ptr, frame->datalen, sampling_rate);
+}
+
 static int reload(void)
 {
 	/* Reload does nothing */
@@ -780,6 +797,9 @@ static int reload(void)
 static int unload_module(void)
 {
 	int res;
+
+	opus_codec->samples_count = opus_samples_previous;
+	ao2_ref(opus_codec, -1);
 
 	res = ast_unregister_translator(&opustolin);
 	res |= ast_unregister_translator(&lintoopus);
@@ -800,6 +820,10 @@ static int unload_module(void)
 static int load_module(void)
 {
 	int res;
+
+	opus_codec = ast_codec_get("opus", AST_MEDIA_TYPE_AUDIO, 48000);
+	opus_samples_previous = opus_codec->samples_count;
+	opus_codec->samples_count = opus_samples;
 
 	res = ast_register_translator(&opustolin);
 	res |= ast_register_translator(&lintoopus);
