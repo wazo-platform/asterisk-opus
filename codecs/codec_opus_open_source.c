@@ -54,6 +54,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/linkedlists.h"
 #include "asterisk/astobj2.h"
 #include "asterisk/codec.h"
+#include "asterisk/opus.h"
 
 #define	BUFFER_SAMPLES	5760
 #define	MAX_CHANNELS	2
@@ -109,12 +110,12 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 {
 	struct opus_coder_pvt *opvt = pvt->pvt;
 	struct opus_attr *attr = pvt->explicit_dst ? ast_format_get_attribute_data(pvt->explicit_dst) : NULL;
-	const opus_int32 bitrate = attr ? attr->maxbitrate  : 510000;
-	const int maxplayrate    = attr ? attr->maxplayrate : 48000;
-	const int channels       = attr ? attr->stereo + 1  : 1;
-	const opus_int32 vbr     = attr ? !(attr->cbr)      : 1;
-	const opus_int32 fec     = attr ? attr->fec         : 1;
-	const opus_int32 dtx     = attr ? attr->dtx         : 0;
+	const opus_int32 bitrate = attr ? attr->maxbitrate  : CODEC_OPUS_DEFAULT_BITRATE;
+	const int maxplayrate    = attr ? attr->maxplayrate : CODEC_OPUS_DEFAULT_MAX_PLAYBACK_RATE;
+	const int channels       = attr ? attr->stereo + 1  : CODEC_OPUS_DEFAULT_STEREO + 1;
+	const opus_int32 vbr     = attr ? !(attr->cbr)      : !CODEC_OPUS_DEFAULT_CBR;
+	const opus_int32 fec     = attr ? attr->fec         : CODEC_OPUS_DEFAULT_FEC;
+	const opus_int32 dtx     = attr ? attr->dtx         : CODEC_OPUS_DEFAULT_DTX;
 	const int application    = OPUS_APPLICATION_VOIP;
 	int status = 0;
 

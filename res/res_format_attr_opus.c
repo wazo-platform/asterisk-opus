@@ -34,6 +34,7 @@ ASTERISK_REGISTER_FILE()
 #include "asterisk/module.h"
 #include "asterisk/format.h"
 #include "asterisk/logger.h"            /* for ast_log, LOG_WARNING */
+#include "asterisk/opus.h"              /* for CODEC_OPUS_DEFAULT_* */
 #include "asterisk/strings.h"           /* for ast_str_append */
 #include "asterisk/utils.h"             /* for MIN, ast_malloc, ast_free */
 
@@ -55,14 +56,14 @@ struct opus_attr {
 };
 
 static struct opus_attr default_opus_attr = {
-	.maxplayrate         = 48000,
-	.spropmaxcapturerate = 48000,
-	.maxbitrate          = 510000,
-	.stereo              = 0,
-	.spropstereo         = 0,
-	.cbr                 = 0,
-	.fec                 = 1,
-	.dtx                 = 0,
+	.maxplayrate         = CODEC_OPUS_DEFAULT_MAX_PLAYBACK_RATE,
+	.spropmaxcapturerate = CODEC_OPUS_DEFAULT_MAX_PLAYBACK_RATE,
+	.maxbitrate          = CODEC_OPUS_DEFAULT_BITRATE,
+	.stereo              = CODEC_OPUS_DEFAULT_STEREO,
+	.spropstereo         = CODEC_OPUS_DEFAULT_STEREO,
+	.cbr                 = CODEC_OPUS_DEFAULT_CBR,
+	.fec                 = CODEC_OPUS_DEFAULT_FEC,
+	.dtx                 = CODEC_OPUS_DEFAULT_DTX,
 };
 
 static void opus_destroy(struct ast_format *format)
