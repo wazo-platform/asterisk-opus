@@ -7,6 +7,9 @@
  *
  */
 
+#include "asterisk/format_cache.h"      /* for ast_format_opus */
+#include "asterisk/frame.h"             /* for ast_frame, etc */
+
 /* Opus, a 20ms sample */
 static uint8_t ex_opus[] = {
 	0x4b, 0x41, 0x25, 0x0b, 0xe4, 0x55, 0xc6, 0x74,

@@ -44,17 +44,21 @@ ASTERISK_REGISTER_FILE()
 ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #endif
 
+#include "asterisk/astobj2.h"           /* for ao2_ref */
+#include "asterisk/cli.h"               /* for ast_cli_entry, ast_cli, etc */
+#include "asterisk/codec.h"             /* for ast_codec_get */
+#include "asterisk/format.h"            /* for ast_format_get_attribute_data */
+#include "asterisk/frame.h"             /* for ast_frame, etc */
+#include "asterisk/linkedlists.h"       /* for AST_LIST_NEXT, etc */
+#include "asterisk/lock.h"              /* for ast_atomic_fetchadd_int */
+#include "asterisk/logger.h"            /* for ast_log, LOG_ERROR, etc */
+#include "asterisk/module.h"
+#include "asterisk/translate.h"         /* for ast_trans_pvt, etc */
+#include "asterisk/utils.h"             /* for ARRAY_LEN */
+
 #include <opus/opus.h>
 
-#include "asterisk/translate.h"
-#include "asterisk/module.h"
-#include "asterisk/cli.h"
-#include "asterisk/config.h"
-#include "asterisk/utils.h"
-#include "asterisk/linkedlists.h"
-#include "asterisk/astobj2.h"
-#include "asterisk/codec.h"
-#include "asterisk/opus.h"
+#include "asterisk/opus.h"              /* for CODEC_OPUS_DEFAULT_* */
 
 #define	BUFFER_SAMPLES	5760
 #define	MAX_CHANNELS	2
