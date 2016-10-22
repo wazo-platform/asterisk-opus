@@ -101,7 +101,7 @@ static struct ast_frame *vp8_read(struct ast_filestream *s, int *whennext)
 	s->fr.delivery.tv_usec = 0;
 	if ((res = fread(&ts, 1, sizeof(ts), s->f)) == sizeof(ts)) {
 		fs->lastts = ntohl(ts);
-		*whennext = fs->lastts * 4/45;
+		*whennext = fs->lastts * 4 / 45;
 	} else {
 		*whennext = 0;
 	}

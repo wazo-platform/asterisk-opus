@@ -148,8 +148,8 @@ static int opus_encoder_construct(struct ast_trans_pvt *pvt, int sampling_rate)
 	status = opus_encoder_ctl(opvt->opus, OPUS_SET_DTX(dtx));
 
 	opvt->sampling_rate = sampling_rate;
-	opvt->multiplier = 48000/sampling_rate;
-	opvt->framesize = sampling_rate/50;
+	opvt->multiplier = 48000 / sampling_rate;
+	opvt->framesize = sampling_rate / 50;
 	opvt->id = ast_atomic_fetchadd_int(&usage.encoder_id, 1) + 1;
 
 	ast_atomic_fetchadd_int(&usage.encoders, +1);
@@ -166,7 +166,7 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, struct ast_frame *f
 	int error = 0;
 
 	opvt->sampling_rate = pvt->t->dst_codec.sample_rate;
-	opvt->multiplier = 48000/opvt->sampling_rate;
+	opvt->multiplier = 48000 / opvt->sampling_rate;
 	opvt->channels = /* attr ? attr->spropstereo + 1 :*/ 1; /* FIXME */;
 
 	opvt->opus = opus_decoder_create(opvt->sampling_rate, opvt->channels, &error);
