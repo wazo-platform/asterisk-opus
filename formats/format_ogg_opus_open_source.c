@@ -24,6 +24,12 @@
 
 #include "asterisk.h"
 
+#if defined(ASTERISK_REGISTER_FILE)
+ASTERISK_REGISTER_FILE()
+#elif defined(ASTERISK_FILE_VERSION)
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
+#endif
+
 #include <opus/opus.h>
 #include <opus/opusfile.h>
 #include "asterisk/mod_format.h"

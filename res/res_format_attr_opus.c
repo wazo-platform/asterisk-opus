@@ -29,7 +29,11 @@
 
 #include "asterisk.h"
 
+#if defined(ASTERISK_REGISTER_FILE)
 ASTERISK_REGISTER_FILE()
+#elif defined(ASTERISK_FILE_VERSION)
+ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
+#endif
 
 #include "asterisk/module.h"
 #include "asterisk/format.h"
