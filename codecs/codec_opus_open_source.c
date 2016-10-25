@@ -313,8 +313,8 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 	 * we do have optimising compilers, we are able to sacrify optimised code
 	 * for code readability. If you find an error or unnecessary calculation
 	 * which is not optimised = removed by your compiler, please, create an
-	 * issue on <https://github.com/seanbright/asterisk-opus/issues>. I am just
-	 * a human and human do mistakes. However, humans loves to learn.
+	 * issue on <https://github.com/traud/asterisk-opus/issues>. I am just
+	 * a human and human do mistakes. However, humans love to learn.
 	 *
 	 * Source-code examples are
 	 * - <https://git.xiph.org/?p=opus.git;a=history;f=src/opus_demo.c>,
@@ -425,7 +425,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		 * because we create double the amount of frames as normal, see
 		 * <https://issues.asterisk.org/jira/browse/ASTERISK-25483>. If this is
 		 * an issue for your use-case, please, file and issue report on
-		 * <https://github.com/seanbright/asterisk-opus/issues>.
+		 * <https://github.com/traud/asterisk-opus/issues>.
 		 */
 		decode_fec = 0;
 		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));

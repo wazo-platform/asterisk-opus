@@ -1,5 +1,5 @@
---- main/translate.c	(Asterisk 13.9.1)
-+++ main/translate.c	(working copy)
+--- a/main/translate.c	(Asterisk 13.9.1)
++++ b/main/translate.c	(working copy)
 @@ -359,4 +359,5 @@
  	pvt->f.src = pvt->t->name;
  	pvt->f.data.ptr = pvt->outbuf.c;
