@@ -4,7 +4,7 @@ Opus is the default audio codec in WebRTC. WebRTC is available in Asterisk via S
 
 Since Asterisk 13.12 (and Asterisk 14.0.1), Opus is not only supported for pass-through but can be transcoded as well. This allows you to translate to/from other audio codecs like those for landline telephones (ISDN: G.711; DECT: G.726-32; and HD: G.722) or mobile phones (GSM, AMR, AMR-WB, 3GPP EVS). This can be achieved by
 
-A. enabling `opus_codec` via `make menuselect`, or
+A. enabling `codec_opus` via `make menuselect`, or
 
 B. downloading the module from [Digium Downloads](http://www.digium.com/products/asterisk/downloads) » Add-on Voice Codecs, or
 
