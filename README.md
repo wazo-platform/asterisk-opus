@@ -31,7 +31,7 @@ To support transcoding, you’ll need to install an Opus library, for example in
 
 Apply all changes:
 
-	wget github.com/traud/asterisk-opus/archive/master.tar.gz
+	wget github.com/traud/asterisk-opus/archive/asterisk-13.7.tar.gz
 	tar zxf ./master.tar.gz
 	rm ./master.tar.gz
 	cp --verbose ./asterisk-opus*/include/asterisk/* ./include/asterisk
