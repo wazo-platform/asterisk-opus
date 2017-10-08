@@ -9,7 +9,7 @@
 @@ -525,11 +526,44 @@
  struct ast_frame *ast_translate(struct ast_trans_pvt *path, struct ast_frame *f, int consume)
  {
--	struct ast_trans_pvt *p = path;
+ 	struct ast_trans_pvt *p = path;
 -	struct ast_frame *out;
 +	const unsigned int rtp_seqno_max_value = 0xffff;
 +	struct ast_frame *out_last, *out = NULL;
