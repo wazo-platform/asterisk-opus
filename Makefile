@@ -2,7 +2,6 @@ prefix=/usr/local
 exec_prefix=$(prefix)
 libdir=$(exec_prefix)/lib
 
-CC=gcc
 CFLAGS=-pthread -g3 -O3 -D_FORTIFY_SOURCE=2 -fPIC
 CPPFLAGS=
 DEFS=
