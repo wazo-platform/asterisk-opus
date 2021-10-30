@@ -167,7 +167,7 @@ static int opus_decoder_construct(struct ast_trans_pvt *pvt, struct ast_frame *f
 
 	opvt->sampling_rate = pvt->t->dst_codec.sample_rate;
 	opvt->multiplier = 48000 / opvt->sampling_rate;
-	opvt->channels = /* attr ? attr->spropstereo + 1 :*/ 1; /* FIXME */;
+	opvt->channels = /* attr ? attr->spropstereo + 1 :*/ 1; /* FIXME */
 
 	opvt->opus = opus_decoder_create(opvt->sampling_rate, opvt->channels, &error);
 
