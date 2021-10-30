@@ -87,7 +87,7 @@ static struct ast_frame *vp8_read(struct ast_filestream *s, int *whennext)
 		len = BUF_SIZE;	/* XXX truncate */
 	}
 	s->fr.mallocd = 0;
-	AST_FRAME_SET_BUFFER(&s->fr, s->buf, AST_FRIENDLY_OFFSET, len);
+	AST_FRAME_SET_BUFFER(&s->fr, s->buf, AST_FRIENDLY_OFFSET, len)
 	if ((res = fread(s->fr.data.ptr, 1, s->fr.datalen, s->f)) != s->fr.datalen) {
 		if (res) {
 			ast_log(LOG_WARNING, "Short read (%d of %d) (%s)!\n", res, len, strerror(errno));
