@@ -285,7 +285,7 @@ static struct ast_frame *ogg_opus_read(struct ast_filestream *fs, int *whennext)
 		return NULL;
 	}
 
-	AST_FRAME_SET_BUFFER(&fs->fr, fs->buf, AST_FRIENDLY_OFFSET, BUF_SIZE);
+	AST_FRAME_SET_BUFFER(&fs->fr, fs->buf, AST_FRIENDLY_OFFSET, BUF_SIZE)
 
 	out_buf = (opus_int16 *) fs->fr.data.ptr;
 
