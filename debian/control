@@ -1,0 +1,21 @@
+Source: wazo-codec-opus-open-source
+Section: comm
+Priority: extra
+Maintainer: Wazo Maintainers <dev@wazo.community>
+Build-Depends: debhelper (>= 9), asterisk-dev (>= 8:18), libopus-dev
+Standards-Version: 3.9.6
+
+Package: wazo-codec-opus-open-source
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, asterisk (>= 8:18), libopus0
+Description: Consul module for the Asterisk IPBX
+ Connects to a Consul server for service discovering.
+ .
+
+Package: wazo-codec-opus-open-source-dev
+Architecture: all
+Section: devel
+Depends: ${misc:Depends}, asterisk-dev (>= 8:18)
+Description: Consul module for the Asterisk IPBX
+ Connects to a Consul server for service discovering.
+ .
