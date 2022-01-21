@@ -1,0 +1,5 @@
+wazo-codec-opus-open-source (0.0.1) wazo-dev-buster; urgency=medium
+
+  * Initial release.
+
+ -- Wazo Maintainers <dev+pkg@wazo.community>  Thu, 20 Jan 2022 13:58:40 -0500

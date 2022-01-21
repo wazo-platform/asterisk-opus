@@ -1,0 +1,11 @@
+Format: http://dep.debian.net/deps/dep5
+Upstream-Name: wazo-codec-opus-open-source
+Source: https://github.com/wazo-platform/wazo-codec-opus-open-source.git
+
+Files: *
+Copyright: Lorenzo Miniero, Sean Bright, Tzafrir Cohen, Alexander Traud
+License: GPL
+
+Files: debian/*
+Copyright: 2022 The Wazo Authors
+License: GPL-3
