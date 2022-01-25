@@ -1,0 +1,3 @@
+enabled_asterisk_modules:
+  codec_opus.so: false
+  codec_opus_open_source.so: true
