@@ -1,0 +1,2 @@
+etc/* etc/
+debian/tmp/usr/local/lib/asterisk/modules/codec_opus_open_source.so usr/lib/asterisk/modules/

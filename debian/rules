@@ -3,5 +3,5 @@
 %:
 	dh $@
 
-override_dh_auto_install:
-	dh_auto_install -- prefix=/usr
+override_dh_strip:
+	dh_strip --dbg-package=wazo-codec-opus-open-source-dbg
