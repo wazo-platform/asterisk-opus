@@ -12,10 +12,9 @@ Description: Opus codec for the Asterisk IPBX
  Open source Opus codec implementation for Asterisk
  .
 
-Package: wazo-codec-opus-open-source-dev
-Architecture: all
-Section: devel
-Depends: ${misc:Depends}, asterisk-dev (>= 8:18)
-Description: Opus codec for the Asterisk IPBX
+Package: wazo-codec-opus-open-source-dbg
+Architecture: any
+Depends: wazo-codec-opus-open-source (= ${source:Version})
+Description: Opus codec for the Asterisk IPBX with debug symbols
  Open source Opus codec implementation for Asterisk
  .
