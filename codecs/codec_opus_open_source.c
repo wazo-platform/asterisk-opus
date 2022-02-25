@@ -60,7 +60,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
 #include "asterisk/opus.h"              /* for CODEC_OPUS_DEFAULT_* */
 
-#define	BUFFER_SAMPLES	5760
+#define	BUFFER_SAMPLES	11520
 #define	MAX_CHANNELS	2
 #define	OPUS_SAMPLES	960
 
