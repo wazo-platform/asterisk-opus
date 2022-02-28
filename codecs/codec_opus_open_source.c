@@ -399,7 +399,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 5 and 6 */
 	if (!opvt->previous_lost) { /* 0 < f->datalen */
-		ast_log(LOG_ERROR, "Case 5 and 6\n");
+		// ast_log(LOG_ERROR, "Case 5 and 6\n");
 		/*
 		 * The perfect case - the previous frame was not lost and we have data
 		 * in the current frame. Therefore, neither FEC nor PLC are required.
@@ -413,6 +413,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		if (status < 0) {
 			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
 		} else {
+			ast_log(LOG_ERROR, "status: %d, datalen: %d, channels: %d, sizeof(int16_6): %d\n", status, f->datalen, opvt->channels, sizeof(int16_t));
 			pvt->samples += status;
 			pvt->datalen += status * opvt->channels * sizeof(int16_t);
 		}
