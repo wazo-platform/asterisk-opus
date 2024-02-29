@@ -60,7 +60,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 
 #include "asterisk/opus.h"              /* for CODEC_OPUS_DEFAULT_* */
 
-#define	BUFFER_SAMPLES	5760
+#define	BUFFER_SAMPLES	11520
 #define	MAX_CHANNELS	2
 #define	OPUS_SAMPLES	960
 
@@ -325,6 +325,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 1 and 2 */
 	if (f->datalen == 0 && opvt->previous_lost) {
+		ast_log(LOG_ERROR, "Case 1 and 2\n");
 		/*
 		 * If this frame and the previous frame got lost, we do not have any
 		 * data for FEC. Therefore, we go for PLC on the previous frame. However,
@@ -353,6 +354,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 3 */
 	if (f->datalen == 0 && !decode_fec) { /* !opvt->previous_lost */
+		ast_log(LOG_ERROR, "Case 3\n");
 		/*
 		 * The sender stated in SDP: "I am not going to provide FEC". Therefore,
 		 * we do not wait for the next frame and do PLC right away.
@@ -375,6 +377,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 4 */
 	if (f->datalen == 0) { /* decode_fec && !opvt->previous_lost */
+		ast_log(LOG_ERROR, "Case 4\n");
 		/*
 		 * The previous frame was of no issue. Therefore, we do not have to
 		 * reconstruct it. We do not have any data in the current frame but the
@@ -396,6 +399,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 5 and 6 */
 	if (!opvt->previous_lost) { /* 0 < f->datalen */
+		// ast_log(LOG_ERROR, "Case 5 and 6\n");
 		/*
 		 * The perfect case - the previous frame was not lost and we have data
 		 * in the current frame. Therefore, neither FEC nor PLC are required.
@@ -409,6 +413,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 		if (status < 0) {
 			ast_log(LOG_ERROR, "%s\n", opus_strerror(status));
 		} else {
+			ast_log(LOG_ERROR, "status: %d, datalen: %d, channels: %d, sizeof(int16_6): %d\n", status, f->datalen, opvt->channels, sizeof(int16_t));
 			pvt->samples += status;
 			pvt->datalen += status * opvt->channels * sizeof(int16_t);
 		}
@@ -418,6 +423,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 7 */
 	if (!decode_fec) { /* 0 < f->datalen && opvt->previous_lost */
+		ast_log(LOG_ERROR, "Case 7\n");
 		/*
 		 * The previous frame got lost and the sender stated in SDP: "I am not
 		 * going to provide FEC". Therefore, we do PLC. Furthermore, we try to
@@ -457,6 +463,7 @@ static int opustolin_framein(struct ast_trans_pvt *pvt, struct ast_frame *f)
 
 	/* Case 8; Last Case */
 	{ /* 0 < f->datalen && opvt->previous_lost && decode_fec */
+		ast_log(LOG_ERROR, "Case 8\n");
 		decode_fec = 1;
 		opus_decoder_ctl(opvt->opus, OPUS_GET_LAST_PACKET_DURATION(&frame_size));
 		dst = pvt->outbuf.i16 + (pvt->samples * opvt->channels);
